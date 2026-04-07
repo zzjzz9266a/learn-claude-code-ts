@@ -1,75 +1,49 @@
 "use client";
 
 import { useMemo } from "react";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkRehype from "remark-rehype";
+import rehypeHighlight from "rehype-highlight";
+import rehypeStringify from "rehype-stringify";
 
 interface SourceViewerProps {
   source: string;
   filename: string;
 }
 
-function highlightLine(line: string): React.ReactNode[] {
-  const trimmed = line.trimStart();
-  if (trimmed.startsWith("#")) {
-    return [
-      <span key={0} className="text-zinc-400 italic">
-        {line}
-      </span>,
-    ];
-  }
-  if (trimmed.startsWith("@")) {
-    return [
-      <span key={0} className="text-amber-400">
-        {line}
-      </span>,
-    ];
-  }
-  if (trimmed.startsWith('"""') || trimmed.startsWith("'''")) {
-    return [
-      <span key={0} className="text-emerald-500">
-        {line}
-      </span>,
-    ];
-  }
+export function inferCodeLanguage(filename: string): string {
+  if (filename.endsWith(".tsx")) return "tsx";
+  if (filename.endsWith(".ts")) return "typescript";
+  if (filename.endsWith(".json")) return "json";
+  if (filename.endsWith(".md")) return "markdown";
+  if (filename.endsWith(".sh")) return "bash";
+  return "typescript";
+}
 
-  const keywordSet = new Set([
-    "def", "class", "import", "from", "return", "if", "elif", "else",
-    "while", "for", "in", "not", "and", "or", "is", "None", "True",
-    "False", "try", "except", "raise", "with", "as", "yield", "break",
-    "continue", "pass", "global", "lambda", "async", "await",
-  ]);
+function extractCodeInnerHtml(html: string): string {
+  const match = html.match(/<pre><code class="hljs(?: language-[^"]+)?">([\s\S]*?)<\/code><\/pre>/);
+  return match?.[1] ?? html;
+}
 
-  const parts = line.split(
-    /(\b(?:def|class|import|from|return|if|elif|else|while|for|in|not|and|or|is|None|True|False|try|except|raise|with|as|yield|break|continue|pass|global|lambda|async|await|self)\b|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|f"(?:[^"\\]|\\.)*"|f'(?:[^'\\]|\\.)*'|#.*$|\b\d+(?:\.\d+)?\b)/
-  );
+export function highlightSourceToHtml(source: string, filename: string): string {
+  const language = inferCodeLanguage(filename);
+  const markdown = `\`\`\`${language}\n${source}\n\`\`\``;
+  const result = unified()
+    .use(remarkParse)
+    .use(remarkRehype)
+    .use(rehypeHighlight, { detect: false, ignoreMissing: true })
+    .use(rehypeStringify)
+    .processSync(markdown);
 
-  return parts.map((part, idx) => {
-    if (!part) return null;
-    if (keywordSet.has(part)) {
-      return <span key={idx} className="text-blue-400 font-medium">{part}</span>;
-    }
-    if (part === "self") {
-      return <span key={idx} className="text-purple-400">{part}</span>;
-    }
-    if (part.startsWith("#")) {
-      return <span key={idx} className="text-zinc-400 italic">{part}</span>;
-    }
-    if (
-      (part.startsWith('"') && part.endsWith('"')) ||
-      (part.startsWith("'") && part.endsWith("'")) ||
-      (part.startsWith('f"') && part.endsWith('"')) ||
-      (part.startsWith("f'") && part.endsWith("'"))
-    ) {
-      return <span key={idx} className="text-emerald-500">{part}</span>;
-    }
-    if (/^\d+(?:\.\d+)?$/.test(part)) {
-      return <span key={idx} className="text-orange-400">{part}</span>;
-    }
-    return <span key={idx}>{part}</span>;
-  });
+  return extractCodeInnerHtml(String(result));
 }
 
 export function SourceViewer({ source, filename }: SourceViewerProps) {
-  const lines = useMemo(() => source.split("\n"), [source]);
+  const highlightedLines = useMemo(() => {
+    const html = highlightSourceToHtml(source, filename);
+    return html.split("\n");
+  }, [source, filename]);
 
   return (
     <div className="rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -84,14 +58,15 @@ export function SourceViewer({ source, filename }: SourceViewerProps) {
       <div className="overflow-x-auto bg-zinc-950">
         <pre className="p-2 text-[10px] leading-4 sm:p-4 sm:text-xs sm:leading-5">
           <code>
-            {lines.map((line, i) => (
+            {highlightedLines.map((line, i) => (
               <div key={i} className="flex">
                 <span className="mr-2 inline-block w-6 shrink-0 select-none text-right text-zinc-600 sm:mr-4 sm:w-8">
                   {i + 1}
                 </span>
-                <span className="text-zinc-200">
-                  {highlightLine(line)}
-                </span>
+                <span
+                  className="text-zinc-200 [&_.hljs-keyword]:text-blue-400 [&_.hljs-keyword]:font-medium [&_.hljs-string]:text-emerald-500 [&_.hljs-number]:text-orange-400 [&_.hljs-comment]:text-zinc-400 [&_.hljs-comment]:italic [&_.hljs-title]:text-cyan-300 [&_.hljs-function_.hljs-title]:text-cyan-300 [&_.hljs-params]:text-zinc-300 [&_.hljs-built_in]:text-violet-300 [&_.hljs-literal]:text-amber-300 [&_.hljs-type]:text-teal-300 [&_.hljs-property]:text-zinc-200"
+                  dangerouslySetInnerHTML={{ __html: line || "&nbsp;" }}
+                />
               </div>
             ))}
           </code>
