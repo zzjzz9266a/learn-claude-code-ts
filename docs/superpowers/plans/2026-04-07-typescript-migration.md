@@ -154,7 +154,7 @@ Expected: PASS
 - Create: `agents/s11_autonomous_agents.ts`
 - Create: `agents/s12_worktree_task_isolation.ts`
 - Create: `agents/s_full.ts`
-- Delete: `agents/*.py`
+- Delete: `agents/*.ts`
 - Delete: `agents/__init__.py`
 - Test: `tests/agents-smoke.test.ts`
 

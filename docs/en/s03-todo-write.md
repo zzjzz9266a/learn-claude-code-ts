@@ -93,7 +93,7 @@ The "one in_progress at a time" constraint forces sequential focus. The nag remi
 
 ```sh
 cd learn-claude-code
-python agents/s03_todo_write.py
+tsx agents/s03_todo_write.ts
 ```
 
 1. `Refactor the file hello.py: add type hints, docstrings, and a main guard`

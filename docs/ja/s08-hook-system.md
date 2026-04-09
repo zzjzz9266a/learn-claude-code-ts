@@ -141,7 +141,7 @@ Hook は便利ですが、メインの状態遷移まで押し込む場所では
 
 ```sh
 cd learn-claude-code
-python agents/s08_hook_system.py
+tsx agents/s08_hook_system.ts
 ```
 
 見るポイント:

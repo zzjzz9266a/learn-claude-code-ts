@@ -97,7 +97,7 @@
 
 - [`data-structures.md`](./data-structures.md)
 
-如果你已经知道章节顺序没问题，但一打开本地 `agents/*.py` 就会重新乱掉，建议再配合看：
+如果你已经知道章节顺序没问题，但一打开本地 `agents/*.ts` 就会重新乱掉，建议再配合看：
 
 - [`s00f-code-reading-order.md`](./s00f-code-reading-order.md)
 

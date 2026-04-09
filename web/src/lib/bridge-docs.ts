@@ -90,9 +90,9 @@ export const BRIDGE_DOCS: Record<string, BridgeDocDescriptor> = {
       ja: "コード読解順",
     },
     summary: {
-      zh: "专门告诉你本地 `agents/*.py` 该按什么顺序打开、每章先盯住哪类状态和函数，避免重新乱翻源码。",
-      en: "Shows which local `agents/*.py` files to open first and what state or functions to inspect before the code turns into noise.",
-      ja: "ローカルの `agents/*.py` をどの順で開き、各章でまずどの状態や関数を見るべきかを整理した読解ガイドです。",
+      zh: "专门告诉你本地 `agents/*.ts` 该按什么顺序打开、每章先盯住哪类状态和函数，避免重新乱翻源码。",
+      en: "Shows which local `agents/*.ts` files to open first and what state or functions to inspect before the code turns into noise.",
+      ja: "ローカルの `agents/*.ts` をどの順で開き、各章でまずどの状態や関数を見るべきかを整理した読解ガイドです。",
     },
   },
   "s00e-reference-module-map": {

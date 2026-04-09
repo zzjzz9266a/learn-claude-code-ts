@@ -120,7 +120,7 @@ That's the entire agent in under 30 lines. Everything else in this course layers
 
 ```sh
 cd learn-claude-code
-python agents/s01_agent_loop.py
+tsx agents/s01_agent_loop.ts
 ```
 
 1. `Create a file called hello.py that prints "Hello, World!"`

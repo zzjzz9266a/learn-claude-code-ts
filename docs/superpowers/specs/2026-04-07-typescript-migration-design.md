@@ -11,7 +11,7 @@ Migrate the repository's root learning project from Python to TypeScript so the 
 
 This migration covers the root teaching project and its documentation:
 
-- Replace the root `agents/*.py` teaching implementations with TypeScript equivalents.
+- Replace the root `agents/*.ts` teaching implementations with TypeScript equivalents.
 - Replace Python-based tests in `tests/*.py` with `vitest` tests.
 - Replace Python project configuration and commands with Node.js and TypeScript tooling.
 - Rewrite the root documentation to present TypeScript as the primary and only supported implementation language.

@@ -94,7 +94,7 @@ Add a tool = add a handler + add a schema entry. The loop never changes.
 
 ```sh
 cd learn-claude-code
-python agents/s02_tool_use.py
+tsx agents/s02_tool_use.ts
 ```
 
 1. `Read the file requirements.txt`

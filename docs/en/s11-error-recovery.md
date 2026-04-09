@@ -162,7 +162,7 @@ Real agent systems also persist session state to disk, so that a crash does not 
 
 ```sh
 cd learn-claude-code
-python agents/s11_error_recovery.py
+tsx agents/s11_error_recovery.ts
 ```
 
 Try forcing:

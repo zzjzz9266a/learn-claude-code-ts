@@ -158,7 +158,7 @@ Transcripts preserve full history on disk. Large outputs are saved to `.task_out
 
 ```sh
 cd learn-claude-code
-python agents/s06_context_compact.py
+tsx agents/s06_context_compact.ts
 ```
 
 1. `Read every Python file in the agents/ directory one by one` (watch micro-compact replace old results)

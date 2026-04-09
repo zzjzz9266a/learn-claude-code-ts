@@ -12,7 +12,7 @@
 - 不要从文件最长的那一章开始
 - 不要随机点一个你觉得“高级”的章节开始
 - 不要先钻 `web/` 再回头猜主线
-- 不要把 19 个 `agents/*.py` 当成一个源码池乱翻
+- 不要把 19 个 `agents/*.ts` 当成一个源码池乱翻
 
 最稳的读法只有一句话：
 
@@ -115,12 +115,12 @@ CLI 入口当然有用，但它不应该成为第一屏。
 
 | 章节 | 文件 | 先看什么 | 再看什么 | 读完要确认什么 |
 |---|---|---|---|---|
-| `s01` | `agents/s01_agent_loop.py` | `LoopState` | `TOOLS` -> `execute_tool_calls()` -> `run_one_turn()` -> `agent_loop()` | 你已经能看懂 `messages -> model -> tool_result -> next turn` |
-| `s02` | `agents/s02_tool_use.py` | `safe_path()` | `run_read()` / `run_write()` / `run_edit()` -> `TOOL_HANDLERS` -> `agent_loop()` | 你已经能看懂“主循环不变，工具靠分发面增长” |
-| `s03` | `agents/s03_todo_write.py` | `PlanItem` / `PlanningState` / `TodoManager` | `todo` 相关 handler -> reminder 注入 -> `agent_loop()` | 你已经能看懂“会话计划状态”怎么外显化 |
-| `s04` | `agents/s04_subagent.py` | `AgentTemplate` | `run_subagent()` -> 父 `agent_loop()` | 你已经能看懂“子智能体首先是上下文隔离” |
-| `s05` | `agents/s05_skill_loading.py` | `SkillManifest` / `SkillDocument` / `SkillRegistry` | `get_descriptions()` / `get_content()` -> `agent_loop()` | 你已经能看懂“先发现、再按需加载” |
-| `s06` | `agents/s06_context_compact.py` | `CompactState` | `persist_large_output()` -> `micro_compact()` -> `compact_history()` -> `agent_loop()` | 你已经能看懂“压缩不是删历史，而是转移细节” |
+| `s01` | `agents/s01_agent_loop.ts` | `LoopState` | `TOOLS` -> `execute_tool_calls()` -> `run_one_turn()` -> `agent_loop()` | 你已经能看懂 `messages -> model -> tool_result -> next turn` |
+| `s02` | `agents/s02_tool_use.ts` | `safe_path()` | `run_read()` / `run_write()` / `run_edit()` -> `TOOL_HANDLERS` -> `agent_loop()` | 你已经能看懂“主循环不变，工具靠分发面增长” |
+| `s03` | `agents/s03_todo_write.ts` | `PlanItem` / `PlanningState` / `TodoManager` | `todo` 相关 handler -> reminder 注入 -> `agent_loop()` | 你已经能看懂“会话计划状态”怎么外显化 |
+| `s04` | `agents/s04_subagent.ts` | `AgentTemplate` | `run_subagent()` -> 父 `agent_loop()` | 你已经能看懂“子智能体首先是上下文隔离” |
+| `s05` | `agents/s05_skill_loading.ts` | `SkillManifest` / `SkillDocument` / `SkillRegistry` | `get_descriptions()` / `get_content()` -> `agent_loop()` | 你已经能看懂“先发现、再按需加载” |
+| `s06` | `agents/s06_context_compact.ts` | `CompactState` | `persist_large_output()` -> `micro_compact()` -> `compact_history()` -> `agent_loop()` | 你已经能看懂“压缩不是删历史，而是转移细节” |
 
 ### 这一段最值得反复看的 3 个代码点
 
@@ -151,11 +151,11 @@ CLI 入口当然有用，但它不应该成为第一屏。
 
 | 章节 | 文件 | 先看什么 | 再看什么 | 读完要确认什么 |
 |---|---|---|---|---|
-| `s07` | `agents/s07_permission_system.py` | `BashSecurityValidator` / `PermissionManager` | 权限判定入口 -> `run_bash()` -> `agent_loop()` | 你已经能看懂“先 gate，再 execute” |
-| `s08` | `agents/s08_hook_system.py` | `HookManager` | hook 注册与触发 -> `agent_loop()` | 你已经能看懂 hook 是固定时机的插口，不是散落 if |
-| `s09` | `agents/s09_memory_system.py` | `MemoryManager` / `DreamConsolidator` | `run_save_memory()` -> `build_system_prompt()` -> `agent_loop()` | 你已经能看懂 memory 是长期信息层，不是上下文垃圾桶 |
-| `s10` | `agents/s10_system_prompt.py` | `SystemPromptBuilder` | `build_system_reminder()` -> `agent_loop()` | 你已经能看懂输入是流水线，不是单块 prompt |
-| `s11` | `agents/s11_error_recovery.py` | `estimate_tokens()` / `auto_compact()` / `backoff_delay()` | 各恢复分支 -> `agent_loop()` | 你已经能看懂“恢复以后怎样继续下一轮” |
+| `s07` | `agents/s07_permission_system.ts` | `BashSecurityValidator` / `PermissionManager` | 权限判定入口 -> `run_bash()` -> `agent_loop()` | 你已经能看懂“先 gate，再 execute” |
+| `s08` | `agents/s08_hook_system.ts` | `HookManager` | hook 注册与触发 -> `agent_loop()` | 你已经能看懂 hook 是固定时机的插口，不是散落 if |
+| `s09` | `agents/s09_memory_system.ts` | `MemoryManager` / `DreamConsolidator` | `run_save_memory()` -> `build_system_prompt()` -> `agent_loop()` | 你已经能看懂 memory 是长期信息层，不是上下文垃圾桶 |
+| `s10` | `agents/s10_system_prompt.ts` | `SystemPromptBuilder` | `build_system_reminder()` -> `agent_loop()` | 你已经能看懂输入是流水线，不是单块 prompt |
+| `s11` | `agents/s11_error_recovery.ts` | `estimate_tokens()` / `auto_compact()` / `backoff_delay()` | 各恢复分支 -> `agent_loop()` | 你已经能看懂“恢复以后怎样继续下一轮” |
 
 ### 这一段读代码时，最容易重新读乱的地方
 
@@ -177,9 +177,9 @@ CLI 入口当然有用，但它不应该成为第一屏。
 
 | 章节 | 文件 | 先看什么 | 再看什么 | 读完要确认什么 |
 |---|---|---|---|---|
-| `s12` | `agents/s12_task_system.py` | `TaskManager` | 任务创建、依赖、解锁 -> `agent_loop()` | 你已经能看懂 task 是持久工作图，不是 todo |
-| `s13` | `agents/s13_background_tasks.py` | `NotificationQueue` / `BackgroundManager` | 后台执行登记 -> 通知排空 -> `agent_loop()` | 你已经能看懂 background task 是运行槽位 |
-| `s14` | `agents/s14_cron_scheduler.py` | `CronLock` / `CronScheduler` | `cron_matches()` -> schedule 触发 -> `agent_loop()` | 你已经能看懂调度器只负责“未来何时开始” |
+| `s12` | `agents/s12_task_system.ts` | `TaskManager` | 任务创建、依赖、解锁 -> `agent_loop()` | 你已经能看懂 task 是持久工作图，不是 todo |
+| `s13` | `agents/s13_background_tasks.ts` | `NotificationQueue` / `BackgroundManager` | 后台执行登记 -> 通知排空 -> `agent_loop()` | 你已经能看懂 background task 是运行槽位 |
+| `s14` | `agents/s14_cron_scheduler.ts` | `CronLock` / `CronScheduler` | `cron_matches()` -> schedule 触发 -> `agent_loop()` | 你已经能看懂调度器只负责“未来何时开始” |
 
 ### 这一段读代码时一定要守住的边界
 
@@ -199,11 +199,11 @@ CLI 入口当然有用，但它不应该成为第一屏。
 
 | 章节 | 文件 | 先看什么 | 再看什么 | 读完要确认什么 |
 |---|---|---|---|---|
-| `s15` | `agents/s15_agent_teams.py` | `MessageBus` / `TeammateManager` | 队友名册、邮箱、独立循环 -> `agent_loop()` | 你已经能看懂 teammate 是长期 actor，不是一次性 subagent |
-| `s16` | `agents/s16_team_protocols.py` | `RequestStore` / `TeammateManager` | `handle_shutdown_request()` / `handle_plan_review()` -> `agent_loop()` | 你已经能看懂 request-response + `request_id` |
-| `s17` | `agents/s17_autonomous_agents.py` | `RequestStore` / `TeammateManager` | `is_claimable_task()` / `claim_task()` / `ensure_identity_context()` -> `agent_loop()` | 你已经能看懂自治主线：空闲检查 -> 安全认领 -> 恢复工作 |
-| `s18` | `agents/s18_worktree_task_isolation.py` | `TaskManager` / `WorktreeManager` / `EventBus` | `worktree_enter` 相关生命周期 -> `agent_loop()` | 你已经能看懂 task 管目标，worktree 管执行车道 |
-| `s19` | `agents/s19_mcp_plugin.py` | `CapabilityPermissionGate` / `MCPClient` / `PluginLoader` / `MCPToolRouter` | `build_tool_pool()` / `handle_tool_call()` / `normalize_tool_result()` -> `agent_loop()` | 你已经能看懂外部能力如何接回同一控制面 |
+| `s15` | `agents/s15_agent_teams.ts` | `MessageBus` / `TeammateManager` | 队友名册、邮箱、独立循环 -> `agent_loop()` | 你已经能看懂 teammate 是长期 actor，不是一次性 subagent |
+| `s16` | `agents/s16_team_protocols.ts` | `RequestStore` / `TeammateManager` | `handle_shutdown_request()` / `handle_plan_review()` -> `agent_loop()` | 你已经能看懂 request-response + `request_id` |
+| `s17` | `agents/s17_autonomous_agents.ts` | `RequestStore` / `TeammateManager` | `is_claimable_task()` / `claim_task()` / `ensure_identity_context()` -> `agent_loop()` | 你已经能看懂自治主线：空闲检查 -> 安全认领 -> 恢复工作 |
+| `s18` | `agents/s18_worktree_task_isolation.ts` | `TaskManager` / `WorktreeManager` / `EventBus` | `worktree_enter` 相关生命周期 -> `agent_loop()` | 你已经能看懂 task 管目标，worktree 管执行车道 |
+| `s19` | `agents/s19_mcp_plugin.ts` | `CapabilityPermissionGate` / `MCPClient` / `PluginLoader` / `MCPToolRouter` | `build_tool_pool()` / `handle_tool_call()` / `normalize_tool_result()` -> `agent_loop()` | 你已经能看懂外部能力如何接回同一控制面 |
 
 ### 这一段最容易误读的地方
 

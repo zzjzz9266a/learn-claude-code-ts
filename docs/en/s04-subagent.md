@@ -93,7 +93,7 @@ The child's entire message history (possibly 30+ tool calls worth of file reads 
 
 ```sh
 cd learn-claude-code
-python agents/s04_subagent.py
+tsx agents/s04_subagent.ts
 ```
 
 1. `Use a subtask to find what testing framework this project uses`

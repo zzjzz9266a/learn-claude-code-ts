@@ -124,7 +124,7 @@ In the teaching version, `.tasks/` plus `.worktrees/index.json` are enough to re
 
 ```sh
 cd learn-claude-code
-python agents/s18_worktree_task_isolation.py
+tsx agents/s18_worktree_task_isolation.ts
 ```
 
 1. `Create tasks for backend auth and frontend login page, then list tasks.`

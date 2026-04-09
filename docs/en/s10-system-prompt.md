@@ -130,7 +130,7 @@ The important point is not the filename itself. The important point is that inst
 
 ```sh
 cd learn-claude-code
-python agents/s10_system_prompt.py
+tsx agents/s10_system_prompt.ts
 ```
 
 Look for these three things:

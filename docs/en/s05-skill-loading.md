@@ -106,7 +106,7 @@ The model learns what skills exist (cheap, ~100 tokens each) and loads them only
 
 ```sh
 cd learn-claude-code
-python agents/s05_skill_loading.py
+tsx agents/s05_skill_loading.ts
 ```
 
 1. `What skills are available?`

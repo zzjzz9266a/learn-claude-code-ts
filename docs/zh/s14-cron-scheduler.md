@@ -274,7 +274,7 @@ for item in notifications:
 
 ```sh
 cd learn-claude-code
-python agents/s14_cron_scheduler.py
+tsx agents/s14_cron_scheduler.ts
 ```
 
 可以试试这些任务：

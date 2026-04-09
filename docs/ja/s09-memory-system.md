@@ -180,5 +180,5 @@ memory は古くなり得ます。
 
 ```sh
 cd learn-claude-code
-python agents/s09_memory_system.py
+tsx agents/s09_memory_system.ts
 ```

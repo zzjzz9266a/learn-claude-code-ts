@@ -90,7 +90,7 @@ for block in response.content:
 
 ```sh
 cd learn-claude-code
-python agents/s02_tool_use.py
+tsx agents/s02_tool_use.ts
 ```
 
 1. `Read the file requirements.txt`

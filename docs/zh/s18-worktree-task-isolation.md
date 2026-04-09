@@ -485,7 +485,7 @@ worktree_closeout(
 
 ```sh
 cd learn-claude-code
-python agents/s18_worktree_task_isolation.py
+tsx agents/s18_worktree_task_isolation.ts
 ```
 
 可以试试这些任务：

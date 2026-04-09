@@ -146,7 +146,7 @@ Do not collapse them:
 
 ```sh
 cd learn-claude-code
-python agents/s16_team_protocols.py
+tsx agents/s16_team_protocols.ts
 ```
 
 1. `Spawn alice as a coder. Then request her shutdown.`

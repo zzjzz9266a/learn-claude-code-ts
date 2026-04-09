@@ -152,5 +152,5 @@ memory は保存するだけでは意味がありません。
 
 ```sh
 cd learn-claude-code
-python agents/s10_system_prompt.py
+tsx agents/s10_system_prompt.ts
 ```

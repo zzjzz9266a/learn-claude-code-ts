@@ -165,7 +165,7 @@ Keep the boundary straight:
 
 ```sh
 cd learn-claude-code
-python agents/s15_agent_teams.py
+tsx agents/s15_agent_teams.ts
 ```
 
 1. `Spawn alice (coder) and bob (tester). Have alice send bob a message.`

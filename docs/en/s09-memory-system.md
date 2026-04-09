@@ -148,7 +148,7 @@ Short rule of thumb: only useful for this task -- use `task` or `plan`. Useful n
 
 ```sh
 cd learn-claude-code
-python agents/s09_memory_system.py
+tsx agents/s09_memory_system.ts
 ```
 
 Try asking it to remember:

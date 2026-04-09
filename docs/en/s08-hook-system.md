@@ -136,7 +136,7 @@ cat > .hooks.json << 'EOF'
   }
 }
 EOF
-python agents/s08_hook_system.py
+tsx agents/s08_hook_system.ts
 ```
 
 1. Watch SessionStart hook fire at startup

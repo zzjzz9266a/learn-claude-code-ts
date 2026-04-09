@@ -126,7 +126,7 @@ for item in notifications:
 
 ```sh
 cd learn-claude-code
-python agents/s14_cron_scheduler.py
+tsx agents/s14_cron_scheduler.ts
 ```
 
 1. Create a repeating schedule: `Schedule "echo hello" to run every 2 minutes`

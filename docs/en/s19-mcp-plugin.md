@@ -234,7 +234,7 @@ clients = {
 
 ```sh
 cd learn-claude-code
-python agents/s19_mcp_plugin.py
+tsx agents/s19_mcp_plugin.ts
 ```
 
 1. Watch how external tools are discovered from plugin manifests at startup.

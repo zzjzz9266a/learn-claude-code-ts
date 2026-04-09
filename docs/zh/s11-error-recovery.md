@@ -377,7 +377,7 @@ def backoff_delay(attempt: int) -> float:
 
 ```sh
 cd learn-claude-code
-python agents/s11_error_recovery.py
+tsx agents/s11_error_recovery.ts
 ```
 
 可以试试这些任务：

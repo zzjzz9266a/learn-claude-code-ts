@@ -144,7 +144,7 @@ if len(messages) <= 3:
 
 ```sh
 cd learn-claude-code
-python agents/s17_autonomous_agents.py
+tsx agents/s17_autonomous_agents.ts
 ```
 
 1. `Create 3 tasks on the board, then spawn alice and bob. Watch them auto-claim.`

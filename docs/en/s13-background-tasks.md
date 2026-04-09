@@ -114,7 +114,7 @@ This teaching demo keeps the core loop single-threaded; only subprocess waiting 
 
 ```sh
 cd learn-claude-code
-python agents/s13_background_tasks.py
+tsx agents/s13_background_tasks.ts
 ```
 
 1. `Run "sleep 5 && echo done" in the background, then create a file while it runs`

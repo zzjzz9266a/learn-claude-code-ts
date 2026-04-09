@@ -128,7 +128,7 @@ for block in response.content:
 
 ```sh
 cd learn-claude-code
-python agents/s07_permission_system.py
+tsx agents/s07_permission_system.ts
 ```
 
 1. Start in `default` mode -- every write tool asks for approval
