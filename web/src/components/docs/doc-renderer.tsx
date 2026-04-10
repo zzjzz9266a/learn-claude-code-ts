@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useLocale } from "@/lib/i18n";
 import docsData from "@/data/generated/docs.json";
+import { BRIDGE_DOCS } from "@/lib/bridge-docs";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
@@ -28,7 +29,43 @@ function renderMarkdown(md: string): string {
   return String(result);
 }
 
-function postProcessHtml(html: string): string {
+function isChapterDoc(slug: string): boolean {
+  // Check if it's a chapter (s01-s19 pattern, not a bridge doc)
+  // Bridge docs: s00*, s02a, s02b, s10a, s13a, s19a, glossary, entity-map, etc.
+  if (BRIDGE_DOCS[slug]) return false;
+
+  // Pure version ID (s01, s02, etc.)
+  if (/^s\d{1,2}$/.test(slug)) return true;
+
+  // Chapter doc with title like s01-the-agent-loop
+  const match = slug.match(/^s(\d{1,2})-[a-z0-9-]+$/);
+  if (match) {
+    const num = parseInt(match[1]);
+    // Chapters are s01-s19 (1-19)
+    if (num >= 1 && num <= 19) return true;
+  }
+
+  return false;
+}
+
+function postProcessHtml(html: string, locale: string): string {
+  // Rewrite .md links to proper web routes
+  html = html.replace(
+    /<a href="\.\/([^"]+)\.md">/g,
+    (_, slug) => {
+      if (isChapterDoc(slug)) {
+        // Extract version ID (s01, s02, etc.)
+        const versionMatch = slug.match(/^s(\d{1,2})/);
+        if (versionMatch) {
+          const versionId = `s${versionMatch[1]}`;
+          return `<a href="/${locale}/${versionId}">`;
+        }
+      }
+      // Bridge doc link
+      return `<a href="/${locale}/docs/${slug}">`;
+    }
+  );
+
   // Add language labels to highlighted code blocks
   html = html.replace(
     /<pre><code class="hljs language-(\w+)">/g,
@@ -93,8 +130,8 @@ export function DocRenderer({ version, slug }: DocRendererProps) {
 
   const html = useMemo(() => {
     const raw = renderMarkdown(doc.content);
-    return postProcessHtml(raw);
-  }, [doc.content]);
+    return postProcessHtml(raw, locale);
+  }, [doc.content, locale]);
 
   return (
     <div className="py-4">
