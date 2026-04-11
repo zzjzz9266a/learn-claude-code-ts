@@ -190,42 +190,55 @@ queued_context_modifiers = {
 ### 第一步：先分清哪些工具能并发
 
 ```typescript
-def is_concurrency_safe(tool_name: str, tool_input: dict) -> bool:
-    return tool_name in {"read_file", "search_files"}
+function is_concurrency_safe(tool_name: string, tool_input: Record<string, any>): boolean {
+    return ["read_file", "search_files"].includes(tool_name);
+}
 ```
 
 ### 第二步：先分批，再执行
 
 ```typescript
-batches = partition_tool_calls(tool_uses)
+const batches = partition_tool_calls(tool_uses);
 
-for batch in batches:
-    if batch["is_concurrency_safe"]:
-        run_concurrently(batch["blocks"])
-    else:
-        run_serially(batch["blocks"])
+for (const batch of batches) {
+    if (batch.is_concurrency_safe) {
+        run_concurrently(batch.blocks);
+    } else {
+        run_serially(batch.blocks);
+    }
+}
 ```
 
 ### 第三步：并发批次先吐进度，再收最终结果
 
 ```typescript
-for update in run_concurrently(...):
-    if update.get("message"):
-        yield update["message"]
+for (const update of run_concurrently(...)) {
+    if (update.message) {
+        yield update.message;
+    }
+}
 ```
 
 ### 第四步：context modifier 不要乱序落地
 
 ```typescript
-queued_modifiers = {}
+const queued_modifiers: Record<string, any[]> = {};
 
-for update in concurrent_updates:
-    if update.get("context_modifier"):
-        queued_modifiers[update["tool_id"]].append(update["context_modifier"])
+for (const update of concurrent_updates) {
+    if (update.context_modifier) {
+        if (!queued_modifiers[update.tool_id]) {
+            queued_modifiers[update.tool_id] = [];
+        }
+        queued_modifiers[update.tool_id].push(update.context_modifier);
+    }
+}
 
-for tool in original_batch_order:
-    for modifier in queued_modifiers.get(tool["id"], []):
-        context = modifier(context)
+for (const tool of original_batch_order) {
+    const modifiers = queued_modifiers[tool.id] || [];
+    for (const modifier of modifiers) {
+        context = modifier(context);
+    }
+}
 ```
 
 这一步是整篇里最容易被低估，但其实最接近真实系统开始长出执行运行时的点之一。

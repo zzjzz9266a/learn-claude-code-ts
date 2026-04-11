@@ -183,28 +183,30 @@ pending -> expired
 发请求：
 
 ```typescript
-def request_shutdown(target: str):
-    request_id = new_id()
+function request_shutdown(target: string): void {
+    const request_id = new_id();
     requests[request_id] = {
-        "kind": "shutdown",
-        "target": target,
-        "status": "pending",
-    }
+        kind: "shutdown",
+        target: target,
+        status: "pending",
+    };
     bus.send(
         "lead",
         target,
-        msg_type="shutdown_request",
-        extra={"request_id": request_id},
-        content="Please shut down gracefully.",
-    )
+        "shutdown_request",
+        { request_id: request_id },
+        "Please shut down gracefully.",
+    );
+}
 ```
 
 收响应：
 
 ```typescript
-def handle_shutdown_response(request_id: str, approve: bool):
-    record = requests[request_id]
-    record["status"] = "approved" if approve else "rejected"
+function handle_shutdown_response(request_id: string, approve: boolean): void {
+    const record = requests[request_id];
+    record.status = approve ? "approved" : "rejected";
+}
 ```
 
 ### 协议 2：计划审批
@@ -214,36 +216,38 @@ def handle_shutdown_response(request_id: str, approve: bool):
 比如某个队友想做高风险改动，可以先提计划：
 
 ```typescript
-def submit_plan(name: str, plan_text: str):
-    request_id = new_id()
+function submit_plan(name: string, plan_text: string): void {
+    const request_id = new_id();
     requests[request_id] = {
-        "kind": "plan_approval",
-        "from": name,
-        "status": "pending",
-        "plan": plan_text,
-    }
+        kind: "plan_approval",
+        from: name,
+        status: "pending",
+        plan: plan_text,
+    };
     bus.send(
         name,
         "lead",
-        msg_type="plan_approval",
-        extra={"request_id": request_id, "plan": plan_text},
-        content="Requesting review.",
-    )
+        "plan_approval",
+        { request_id: request_id, plan: plan_text },
+        "Requesting review.",
+    );
+}
 ```
 
 领导审批：
 
 ```typescript
-def review_plan(request_id: str, approve: bool, feedback: str = ""):
-    record = requests[request_id]
-    record["status"] = "approved" if approve else "rejected"
+function review_plan(request_id: string, approve: boolean, feedback: string = ""): void {
+    const record = requests[request_id];
+    record.status = approve ? "approved" : "rejected";
     bus.send(
         "lead",
-        record["from"],
-        msg_type="plan_approval_response",
-        extra={"request_id": request_id, "approve": approve},
-        content=feedback,
-    )
+        record.from,
+        "plan_approval_response",
+        { request_id: request_id, approve: approve },
+        feedback,
+    );
+}
 ```
 
 看到这里，读者应该开始意识到：

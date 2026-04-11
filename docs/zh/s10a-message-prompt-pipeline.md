@@ -180,11 +180,12 @@ reminder = {
 ### 第二步：把消息输入做成独立管道
 
 ```typescript
-def build_messages(raw_messages, attachments, reminders):
-    messages = normalize_messages(raw_messages)
-    messages = attach_memory(messages, attachments)
-    messages = append_reminders(messages, reminders)
-    return messages
+function build_messages(raw_messages: any[], attachments: any[], reminders: any[]): any[] {
+    let messages = normalize_messages(raw_messages);
+    messages = attach_memory(messages, attachments);
+    messages = append_reminders(messages, reminders);
+    return messages;
+}
 ```
 
 ### 第三步：在最后一层统一生成 API payload

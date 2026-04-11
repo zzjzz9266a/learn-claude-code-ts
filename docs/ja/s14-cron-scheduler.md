@@ -101,48 +101,56 @@ schedule = {
 ## 最小実装
 
 ```typescript
-def create(self, cron_expr: str, prompt: str, recurring: bool = True):
-    job = {
+create(cron_expr: string, prompt: string, recurring: boolean = true): Record<string, any> {
+    const job = {
         "id": new_id(),
         "cron": cron_expr,
         "prompt": prompt,
         "recurring": recurring,
-        "created_at": time.time(),
-        "last_fired_at": None,
+        "created_at": Date.now() / 1000,
+        "last_fired_at": null,
+    };
+    this.jobs.push(job);
+    return job;
+}
+```
+
+```typescript
+check_loop(): void {
+    while (true) {
+        const now = new Date();
+        this.check_jobs(now);
+        // sleep 60 seconds
+        // await new Promise(r => setTimeout(r, 60000));
     }
-    self.jobs.append(job)
-    return job
+}
 ```
 
 ```typescript
-def check_loop(self):
-    while True:
-        now = datetime.now()
-        self.check_jobs(now)
-        time.sleep(60)
-```
-
-```typescript
-def check_jobs(self, now):
-    for job in self.jobs:
-        if cron_matches(job["cron"], now):
-            self.queue.put({
+check_jobs(now: Date): void {
+    for (const job of this.jobs) {
+        if (cron_matches(job["cron"], now)) {
+            this.queue.put({
                 "type": "scheduled_prompt",
                 "schedule_id": job["id"],
                 "prompt": job["prompt"],
-            })
-            job["last_fired_at"] = now.timestamp()
+            });
+            job["last_fired_at"] = now.getTime() / 1000;
+        }
+    }
+}
 ```
 
 最後に主ループへ戻します。
 
 ```typescript
-notifications = scheduler.drain()
-for item in notifications:
-    messages.append({
+const notifications = scheduler.drain();
+for (const item of notifications) {
+    messages.push({
         "role": "user",
-        "content": f"[scheduled:{item['schedule_id']}] {item['prompt']}",
-    })
+        "content": `[scheduled:${item["schedule_id"]}] ${item["prompt"]}`
+    });
+}
 ```
 
 ## なぜ `s13` の後なのか

@@ -51,19 +51,22 @@ continue    [Lever 2: auto_compact]
 0. **レバー 0 -- persisted-output**: ツール出力がサイズ閾値を超えた場合、ディスクに書き込みプレビューマーカーに置換する。巨大な出力がコンテキストウィンドウに入るのを防ぐ。
 
 ```typescript
-PERSIST_OUTPUT_TRIGGER_CHARS_DEFAULT = 50000
-PERSIST_OUTPUT_TRIGGER_CHARS_BASH = 30000   # bashはより低い閾値を使用
+const PERSIST_OUTPUT_TRIGGER_CHARS_DEFAULT = 50000;
+const PERSIST_OUTPUT_TRIGGER_CHARS_BASH = 30000;   // bashはより低い閾値を使用
 
-def maybe_persist_output(tool_use_id, output, trigger_chars=None):
-    if len(output) <= trigger:
-        return output
-    stored_path = _persist_tool_result(tool_use_id, output)
-    return _build_persisted_marker(stored_path, output)
-    # Returns: <persisted-output>
-    #   Output too large (48.8KB). Full output saved to: .task_outputs/tool-results/abc123.txt
-    #   Preview (first 2.0KB):
-    #   ... first 2000 chars ...
-    # </persisted-output>
+function maybe_persist_output(tool_use_id: string, output: string, trigger_chars?: number): string {
+    const trigger = trigger_chars ?? PERSIST_OUTPUT_TRIGGER_CHARS_DEFAULT;
+    if (output.length <= trigger) {
+        return output;
+    }
+    const stored_path = _persist_tool_result(tool_use_id, output);
+    return _build_persisted_marker(stored_path, output);
+    // Returns: <persisted-output>
+    //   Output too large (48.8KB). Full output saved to: .task_outputs/tool-results/abc123.txt
+    //   Preview (first 2.0KB):
+    //   ... first 2000 chars ...
+    // </persisted-output>
+}
 ```
 
 モデルは後から`read_file`で保存パスにアクセスし、完全な内容を取得できる。
@@ -71,37 +74,40 @@ def maybe_persist_output(tool_use_id, output, trigger_chars=None):
 1. **レバー 1 -- micro_compact**: 各LLM呼び出しの前に、古いツール結果をプレースホルダーに置換する。`read_file`の結果は参照資料として保持する。
 
 ```typescript
-PRESERVE_RESULT_TOOLS = {"read_file"}
+const PRESERVE_RESULT_TOOLS = new Set(["read_file"]);
 
-def micro_compact(messages: list) -> list:
-    tool_results = [...]  # collect all tool_result entries
-    if len(tool_results) <= KEEP_RECENT:
-        return messages
-    for part in tool_results[:-KEEP_RECENT]:
-        if tool_name in PRESERVE_RESULT_TOOLS:
-            continue   # keep reference material
-        part["content"] = f"[Previous: used {tool_name}]"
-    return messages
+function micro_compact(messages: any[]): any[] {
+    const tool_results = [...];  // collect all tool_result entries
+    if (tool_results.length <= KEEP_RECENT) {
+        return messages;
+    }
+    for (const part of tool_results.slice(0, -KEEP_RECENT)) {
+        if (PRESERVE_RESULT_TOOLS.has(tool_name)) {
+            continue;   // keep reference material
+        }
+        part["content"] = `[Previous: used ${tool_name}]`;
+    }
+    return messages;
+}
 ```
 
 2. **レバー 2 -- auto_compact**: トークンが閾値を超えたら、完全なトランスクリプトをディスクに保存し、LLMに要約を依頼する。
 
 ```typescript
-def auto_compact(messages: list) -> list:
-    transcript_path = TRANSCRIPT_DIR / f"transcript_{int(time.time())}.jsonl"
-    with open(transcript_path, "w") as f:
-        for msg in messages:
-            f.write(json.dumps(msg, default=str) + "\n")
-    response = client.messages.create(
-        model=MODEL,
-        messages=[{"role": "user", "content":
+function auto_compact(messages: any[]): any[] {
+    const transcript_path = `${TRANSCRIPT_DIR}/transcript_${Math.floor(Date.now() / 1000)}.jsonl`;
+    // fs.writeFileSync(transcript_path, messages.map(msg => JSON.stringify(msg)).join("\n"));
+    const response = client.messages.create({
+        model: MODEL,
+        messages: [{"role": "user", "content":
             "Summarize this conversation for continuity..."
-            + json.dumps(messages, default=str)[:80000]}],
-        max_tokens=2000,
-    )
+            + JSON.stringify(messages).slice(0, 80000)}],
+        max_tokens: 2000,
+    });
     return [
-        {"role": "user", "content": f"[Compressed]\n\n{response.content[0].text}"},
-    ]
+        {"role": "user", "content": `[Compressed]\n\n${response.content[0].text}`},
+    ];
+}
 ```
 
 3. **レバー 3 -- manual compact**: `compact`ツールが同じ要約処理をオンデマンドでトリガーする。
@@ -109,15 +115,19 @@ def auto_compact(messages: list) -> list:
 4. ループが4つのレバーすべてを統合する:
 
 ```typescript
-def agent_loop(messages: list):
-    while True:
-        micro_compact(messages)                        # Lever 1
-        if estimate_tokens(messages) > THRESHOLD:
-            messages[:] = auto_compact(messages)       # Lever 2
-        response = client.messages.create(...)
-        # ... tool execution with persisted-output ... # Lever 0
-        if manual_compact:
-            messages[:] = auto_compact(messages)       # Lever 3
+function agent_loop(messages: any[]): void {
+    while (true) {
+        micro_compact(messages);                        // Lever 1
+        if (estimate_tokens(messages) > THRESHOLD) {
+            messages.splice(0, messages.length, ...auto_compact(messages));       // Lever 2
+        }
+        const response = client.messages.create(/* ... */);
+        // ... tool execution with persisted-output ... // Lever 0
+        if (manual_compact) {
+            messages.splice(0, messages.length, ...auto_compact(messages));       // Lever 3
+        }
+    }
+}
 ```
 
 トランスクリプトがディスク上に完全な履歴を保持する。大きな出力は`.task_outputs/tool-results/`に保存される。何も真に失われず、アクティブなコンテキストの外に移動されるだけ。

@@ -169,20 +169,21 @@ This is not ceremony. It makes logs, testing, debugging, and teaching much clear
 ### 1. Split entry params from live state
 
 ```typescript
-def query(params):
-    state = {
+function query(params: Record<string, any>): void {
+    const state = {
         "messages": params["messages"],
         "tool_use_context": params["tool_use_context"],
         "turn_count": 1,
-        "transition": None,
-    }
+        "transition": null,
+    };
+}
 ```
 
 ### 2. Let every continue-site patch state explicitly
 
 ```typescript
-state["transition"] = "tool_result_continuation"
-state["turn_count"] += 1
+state["transition"] = "tool_result_continuation";
+state["turn_count"] += 1;
 ```
 
 ### 3. Make the next turn enter with a reason

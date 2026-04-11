@@ -178,28 +178,31 @@ workflow
 ### 第二步：单独加一个 RuntimeTaskManager
 
 ```typescript
-class RuntimeTaskManager:
-    def __init__(self):
-        self.tasks = {}
+class RuntimeTaskManager {
+    tasks: Record<string, any> = {};
+
+    constructor() {}
+}
 ```
 
 ### 第三步：后台运行时创建 runtime task
 
 ```typescript
-def spawn_bash_task(command: str):
-    task_id = new_runtime_id()
+function spawn_bash_task(command: string): void {
+    const task_id = new_runtime_id();
     runtime_tasks[task_id] = {
-        "id": task_id,
-        "type": "local_bash",
-        "status": "running",
-        "description": command,
-    }
+        id: task_id,
+        type: "local_bash",
+        status: "running",
+        description: command,
+    };
+}
 ```
 
 ### 第四步：必要时把 runtime task 关联回工作图任务
 
 ```typescript
-runtime_tasks[task_id]["work_graph_task_id"] = 12
+runtime_tasks[task_id].work_graph_task_id = 12;
 ```
 
 这一步不是必须一上来就做，但如果系统进入多 agent / worktree 阶段，就会越来越重要。

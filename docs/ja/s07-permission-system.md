@@ -239,25 +239,32 @@ mode = "default" | "plan" | "auto"
 ### 第 1 段階: 判定関数を書く
 
 ```typescript
-def check_permission(tool_name: str, tool_input: dict) -> dict:
-    # 1. deny rules
-    for rule in deny_rules:
-        if matches(rule, tool_name, tool_input):
-            return {"behavior": "deny", "reason": "matched deny rule"}
+function check_permission(tool_name: string, tool_input: Record<string, any>): Record<string, any> {
+    // 1. deny rules
+    for (const rule of deny_rules) {
+        if (matches(rule, tool_name, tool_input)) {
+            return {"behavior": "deny", "reason": "matched deny rule"};
+        }
+    }
 
-    # 2. mode check
-    if mode == "plan" and tool_name in WRITE_TOOLS:
-        return {"behavior": "deny", "reason": "plan mode blocks writes"}
-    if mode == "auto" and tool_name in READ_ONLY_TOOLS:
-        return {"behavior": "allow", "reason": "auto mode allows reads"}
+    // 2. mode check
+    if (mode === "plan" && WRITE_TOOLS.includes(tool_name)) {
+        return {"behavior": "deny", "reason": "plan mode blocks writes"};
+    }
+    if (mode === "auto" && READ_ONLY_TOOLS.includes(tool_name)) {
+        return {"behavior": "allow", "reason": "auto mode allows reads"};
+    }
 
-    # 3. allow rules
-    for rule in allow_rules:
-        if matches(rule, tool_name, tool_input):
-            return {"behavior": "allow", "reason": "matched allow rule"}
+    // 3. allow rules
+    for (const rule of allow_rules) {
+        if (matches(rule, tool_name, tool_input)) {
+            return {"behavior": "allow", "reason": "matched allow rule"};
+        }
+    }
 
-    # 4. fallback
-    return {"behavior": "ask", "reason": "needs confirmation"}
+    // 4. fallback
+    return {"behavior": "ask", "reason": "needs confirmation"};
+}
 ```
 
 重要なのは code の華やかさではなく、
@@ -271,17 +278,20 @@ def check_permission(tool_name: str, tool_input: dict) -> dict:
 permission は tool request が来たあと、handler を呼ぶ前に入ります。
 
 ```typescript
-decision = perms.check(tool_name, tool_input)
+const decision = perms.check(tool_name, tool_input);
 
-if decision["behavior"] == "deny":
-    return f"Permission denied: {decision['reason']}"
+if (decision["behavior"] === "deny") {
+    return `Permission denied: ${decision["reason"]}`;
+}
 
-if decision["behavior"] == "ask":
-    ok = ask_user(...)
-    if not ok:
-        return "Permission denied by user"
+if (decision["behavior"] === "ask") {
+    const ok = ask_user(/* ... */);
+    if (!ok) {
+        return "Permission denied by user";
+    }
+}
 
-return handler(**tool_input)
+return handler(tool_input);
 ```
 
 これで初めて、

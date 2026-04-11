@@ -119,15 +119,15 @@ runtime tasks:
 これは `s12` の durable task です。
 
 ```typescript
-task = {
-    "id": 12,
-    "subject": "Implement auth module",
-    "status": "in_progress",
-    "blockedBy": [],
-    "blocks": [13],
-    "owner": "alice",
-    "worktree": "auth-refactor",
-}
+const task = {
+    id: 12,
+    subject: "Implement auth module",
+    status: "in_progress",
+    blockedBy: [],
+    blocks: [13],
+    owner: "alice",
+    worktree: "auth-refactor",
+};
 ```
 
 ### 2. `RuntimeTaskState`
@@ -180,28 +180,33 @@ workflow
 ### Step 2: 別の runtime task manager を足す
 
 ```typescript
-class RuntimeTaskManager:
-    def __init__(self):
-        self.tasks = {}
+class RuntimeTaskManager {
+    tasks: Record<string, any> = {};
+
+    constructor() {
+        this.tasks = {};
+    }
+}
 ```
 
 ### Step 3: background work 開始時に runtime task を作る
 
 ```typescript
-def spawn_bash_task(command: str):
-    task_id = new_runtime_id()
+function spawn_bash_task(command: string): void {
+    const task_id = new_runtime_id();
     runtime_tasks[task_id] = {
-        "id": task_id,
-        "type": "local_bash",
-        "status": "running",
-        "description": command,
-    }
+        id: task_id,
+        type: "local_bash",
+        status: "running",
+        description: command,
+    };
+}
 ```
 
 ### Step 4: 必要なら work graph へ結び戻す
 
 ```typescript
-runtime_tasks[task_id]["work_graph_task_id"] = 12
+runtime_tasks[task_id].work_graph_task_id = 12;
 ```
 
 初日から必須ではありませんが、teams や worktrees へ進むほど重要になります。

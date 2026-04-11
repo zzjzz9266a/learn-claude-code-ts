@@ -203,9 +203,13 @@ plan 全体には最低限、次の running state も要ります。
 ### 第 1 段階: plan manager を用意する
 
 ```typescript
-class TodoManager:
-    def __init__(self):
-        self.items = []
+class TodoManager {
+    items: any[] = [];
+
+    constructor() {
+        this.items = [];
+    }
+}
 ```
 
 最初はこれで十分です。
@@ -225,26 +229,30 @@ class TodoManager:
 方が理解しやすいです。
 
 ```typescript
-def update(self, items: list) -> str:
-    validated = []
-    in_progress_count = 0
+update(items: any[]): string {
+    const validated: any[] = [];
+    let in_progress_count = 0;
 
-    for item in items:
-        status = item.get("status", "pending")
-        if status == "in_progress":
-            in_progress_count += 1
+    for (const item of items) {
+        const status = item.status ?? "pending";
+        if (status === "in_progress") {
+            in_progress_count++;
+        }
 
-        validated.append({
-            "content": item["content"],
-            "status": status,
-            "activeForm": item.get("activeForm", ""),
-        })
+        validated.push({
+            content: item.content,
+            status: status,
+            activeForm: item.activeForm ?? "",
+        });
+    }
 
-    if in_progress_count > 1:
-        raise ValueError("Only one item can be in_progress")
+    if (in_progress_count > 1) {
+        throw new Error("Only one item can be in_progress");
+    }
 
-    self.items = validated
-    return self.render()
+    this.items = validated;
+    return this.render();
+}
 ```
 
 ここでやっていることは 2 つです。
@@ -255,16 +263,19 @@ def update(self, items: list) -> str:
 ### 第 3 段階: render して可読にする
 
 ```typescript
-def render(self) -> str:
-    lines = []
-    for item in self.items:
-        marker = {
-            "pending": "[ ]",
-            "in_progress": "[>]",
-            "completed": "[x]",
-        }[item["status"]]
-        lines.append(f"{marker} {item['content']}")
-    return "\n".join(lines)
+render(): string {
+    const lines: string[] = [];
+    const markerMap: Record<string, string> = {
+        pending: "[ ]",
+        in_progress: "[>]",
+        completed: "[x]",
+    };
+    for (const item of this.items) {
+        const marker = markerMap[item.status];
+        lines.push(`${marker} ${item.content}`);
+    }
+    return lines.join("\n");
+}
 ```
 
 render の価値は見た目だけではありません。
@@ -279,13 +290,13 @@ plan が text として安定して見えることで、
 ### 第 4 段階: `todo` を 1 つの tool として loop へ接ぐ
 
 ```typescript
-TOOL_HANDLERS = {
-    "read_file": run_read,
-    "write_file": run_write,
-    "edit_file": run_edit,
-    "bash": run_bash,
-    "todo": lambda **kw: TODO.update(kw["items"]),
-}
+const TOOL_HANDLERS: Record<string, Function> = {
+    read_file: run_read,
+    write_file: run_write,
+    edit_file: run_edit,
+    bash: run_bash,
+    todo: (kw: any) => TODO.update(kw.items),
+};
 ```
 
 ここで重要なのは、plan 更新を特別扱いの hidden logic にせず、
@@ -297,11 +308,12 @@ TOOL_HANDLERS = {
 ### 第 5 段階: 数 turn 更新がなければ reminder を挿入する
 
 ```typescript
-if rounds_since_update >= 3:
-    results.insert(0, {
-        "type": "text",
-        "text": "<reminder>Refresh your plan before continuing.</reminder>",
-    })
+if (rounds_since_update >= 3) {
+    results.unshift({
+        type: "text",
+        text: "<reminder>Refresh your plan before continuing.</reminder>",
+    });
+}
 ```
 
 この reminder の意味は「system が代わりに plan を立てる」ではありません。

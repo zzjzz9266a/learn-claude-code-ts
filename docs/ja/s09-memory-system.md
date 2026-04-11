@@ -126,16 +126,17 @@ MEMORY_TYPES = ("user", "feedback", "project", "reference")
 ```
 
 ```typescript
-def save_memory(name, description, mem_type, content):
-    path = memory_dir / f"{slugify(name)}.md"
-    path.write_text(render_frontmatter(name, description, mem_type) + content)
-    rebuild_index()
+function save_memory(name: string, description: string, mem_type: string, content: string): void {
+    const path = `${memory_dir}/${slugify(name)}.md`;
+    // fs.writeFileSync(path, render_frontmatter(name, description, mem_type) + content);
+    rebuild_index();
+}
 ```
 
 次に、セッション開始時に読み込みます。
 
 ```typescript
-memories = memory_store.load_all()
+const memories = memory_store.load_all();
 ```
 
 そして `s10` で prompt 組み立てに入れます。

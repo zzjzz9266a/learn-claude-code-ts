@@ -162,21 +162,22 @@ Do not throw away the prompt-builder step.
 ### 2. Make messages a separate pipeline
 
 ```typescript
-def build_messages(raw_messages, attachments, reminders):
-    messages = normalize_messages(raw_messages)
-    messages = attach_memory(messages, attachments)
-    messages = append_reminders(messages, reminders)
-    return messages
+function build_messages(raw_messages: any[], attachments: any[], reminders: any[]): any[] {
+    let messages = normalize_messages(raw_messages);
+    messages = attach_memory(messages, attachments);
+    messages = append_reminders(messages, reminders);
+    return messages;
+}
 ```
 
 ### 3. Assemble the final payload only at the end
 
 ```typescript
-payload = {
+const payload = {
     "system": build_system_prompt(),
-    "messages": build_messages(...),
-    "tools": build_tools(...),
-}
+    "messages": build_messages(/* ... */),
+    "tools": build_tools(/* ... */),
+};
 ```
 
 This is the important mental upgrade:

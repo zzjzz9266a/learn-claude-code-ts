@@ -213,41 +213,44 @@ event = {
 2. 再为这个任务分配 worktree
 
 ```typescript
-task = tasks.create("Refactor auth flow")
-worktrees.create("auth-refactor", task_id=task["id"])
+const task = tasks.create("Refactor auth flow");
+worktrees.create("auth-refactor", task.id);
 ```
 
 ### 第二步：创建 worktree 并写入注册表
 
 ```typescript
-def create(self, name: str, task_id: int):
-    path = self.root / ".worktrees" / name
-    branch = f"wt/{name}"
+function create(name: string, task_id: number): void {
+    const path = `${this.root}/.worktrees/${name}`;
+    const branch = `wt/${name}`;
 
-    run_git(["worktree", "add", "-b", branch, str(path), "HEAD"])
+    run_git(["worktree", "add", "-b", branch, path, "HEAD"]);
 
-    record = {
-        "name": name,
-        "path": str(path),
-        "branch": branch,
-        "task_id": task_id,
-        "status": "active",
-    }
-    self.index["worktrees"].append(record)
-    self._save_index()
+    const record = {
+        name: name,
+        path: path,
+        branch: branch,
+        task_id: task_id,
+        status: "active",
+    };
+    this.index.worktrees.push(record);
+    this._save_index();
+}
 ```
 
 ### 第三步：同时更新任务记录，不只是写一个 `worktree`
 
 ```typescript
-def bind_worktree(task_id: int, name: str):
-    task = tasks.load(task_id)
-    task["worktree"] = name
-    task["last_worktree"] = name
-    task["worktree_state"] = "active"
-    if task["status"] == "pending":
-        task["status"] = "in_progress"
-    tasks.save(task)
+function bind_worktree(task_id: number, name: string): void {
+    const task = tasks.load(task_id);
+    task.worktree = name;
+    task.last_worktree = name;
+    task.worktree_state = "active";
+    if (task.status === "pending") {
+        task.status = "in_progress";
+    }
+    tasks.save(task);
+}
 ```
 
 为什么这一步很关键？
@@ -259,23 +262,25 @@ def bind_worktree(task_id: int, name: str):
 当前代码里，进入和运行已经拆成两步：
 
 ```typescript
-worktree_enter("auth-refactor")
-worktree_run("auth-refactor", "pytest tests/auth -q")
+worktree_enter("auth-refactor");
+worktree_run("auth-refactor", "pytest tests/auth -q");
 ```
 
 对应到底层，大致就是：
 
 ```typescript
-def enter(self, name: str):
-    self._update_entry(name, last_entered_at=time.time())
-    self.events.emit("worktree.enter", ...)
+function enter(name: string): void {
+    this._update_entry(name, Date.now());
+    this.events.emit("worktree.enter", ...);
+}
 
-def run(self, name: str, command: str):
-    subprocess.run(command, cwd=worktree_path, ...)
+function run(name: string, command: string): void {
+    subprocess.run(command, { cwd: worktree_path, ... });
+}
 ```
 
 ```typescript
-subprocess.run(command, cwd=worktree_path, ...)
+subprocess.run(command, { cwd: worktree_path, ... });
 ```
 
 这一行看起来普通，但它正是隔离的核心：
@@ -303,11 +308,11 @@ subprocess.run(command, cwd=worktree_path, ...)
 
 ```typescript
 worktree_closeout(
-    name="auth-refactor",
-    action="keep",   # or "remove"
-    reason="Need follow-up review",
-    complete_task=False,
-)
+    "auth-refactor",
+    "keep",   // or "remove"
+    "Need follow-up review",
+    false,
+);
 ```
 
 这样读者会更容易理解：

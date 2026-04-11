@@ -110,9 +110,11 @@ hooks = {
 ### 2. 実行関数を作る
 
 ```typescript
-def run_hooks(event_name: str, ctx: dict):
-    for hook in hooks.get(event_name, []):
-        run_one_hook(hook, ctx)
+function run_hooks(event_name: string, ctx: Record<string, any>): void {
+    for (const hook of hooks.get(event_name) || []) {
+        run_one_hook(hook, ctx);
+    }
+}
 ```
 
 ### 3. ループに接続する

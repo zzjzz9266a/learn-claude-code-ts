@@ -110,15 +110,15 @@ Background lane
 教材コードでは、background 実行はおおむね次の record を持ちます。
 
 ```typescript
-task = {
-    "id": "a1b2c3d4",
-    "command": "pytest",
-    "status": "running",
-    "started_at": 1710000000.0,
-    "finished_at": None,
-    "result_preview": "",
-    "output_file": ".runtime-tasks/a1b2c3d4.log",
-}
+const task = {
+    id: "a1b2c3d4",
+    command: "pytest",
+    status: "running",
+    started_at: 1710000000.0,
+    finished_at: null,
+    result_preview: "",
+    output_file: ".runtime-tasks/a1b2c3d4.log",
+};
 ```
 
 各 field の意味は次の通りです。
@@ -152,13 +152,13 @@ task = {
 background result はまず notification queue に入ります。
 
 ```typescript
-notification = {
-    "task_id": "a1b2c3d4",
-    "status": "completed",
-    "command": "pytest",
-    "preview": "42 tests passed",
-    "output_file": ".runtime-tasks/a1b2c3d4.log",
-}
+const notification = {
+    task_id: "a1b2c3d4",
+    status: "completed",
+    command: "pytest",
+    preview: "42 tests passed",
+    output_file: ".runtime-tasks/a1b2c3d4.log",
+};
 ```
 
 notification の役割は 1 つだけです。
@@ -177,11 +177,17 @@ notification の役割は 1 つだけです。
 - `_notification_queue`: main loop にまだ回収されていない結果
 
 ```typescript
-class BackgroundManager:
-    def __init__(self):
-        self.tasks = {}
-        self._notification_queue = []
-        self._lock = threading.Lock()
+class BackgroundManager {
+    tasks: Record<string, any> = {};
+    _notification_queue: any[] = [];
+    _lock: any; // threading.Lock equivalent
+
+    constructor() {
+        this.tasks = {};
+        this._notification_queue = [];
+        // this._lock = new Lock();
+    }
+}
 ```
 
 ここで lock を置いているのは、background thread と main loop が同じ queue / dict を触るからです。
@@ -191,22 +197,20 @@ class BackgroundManager:
 background 化の一番大きな変化はここです。
 
 ```typescript
-def run(self, command: str) -> str:
-    task_id = str(uuid.uuid4())[:8]
-    self.tasks[task_id] = {
-        "id": task_id,
-        "status": "running",
-        "command": command,
-        "started_at": time.time(),
-    }
+run(command: string): string {
+    const task_id = crypto.randomUUID().slice(0, 8);
+    this.tasks[task_id] = {
+        id: task_id,
+        status: "running",
+        command: command,
+        started_at: Date.now() / 1000,
+    };
 
-    thread = threading.Thread(
-        target=self._execute,
-        args=(task_id, command),
-        daemon=True,
-    )
-    thread.start()
-    return task_id
+    // In TypeScript/Node.js, use worker threads or promises
+    // This is conceptual translation
+    this._execute(task_id, command);
+    return task_id;
+}
 ```
 
 重要なのは thread 自体より、
@@ -218,22 +222,25 @@ def run(self, command: str) -> str:
 ### 第 3 段階: subprocess が終わったら notification を積む
 
 ```typescript
-def _execute(self, task_id: str, command: str):
-    try:
-        result = subprocess.run(..., timeout=300)
-        status = "completed"
-        preview = (result.stdout + result.stderr)[:500]
-    except subprocess.TimeoutExpired:
-        status = "timeout"
-        preview = "command timed out"
+_execute(task_id: string, command: string): void {
+    try {
+        // Execute command with timeout
+        const result = { stdout: "", stderr: "" }; // Placeholder
+        let status = "completed";
+        let preview = (result.stdout + result.stderr).slice(0, 500);
+    } catch (e) {
+        const status = "timeout";
+        const preview = "command timed out";
+    }
 
-    with self._lock:
-        self.tasks[task_id]["status"] = status
-        self._notification_queue.append({
-            "task_id": task_id,
-            "status": status,
-            "preview": preview,
-        })
+    // with lock equivalent
+    this.tasks[task_id].status = status;
+    this._notification_queue.push({
+        task_id: task_id,
+        status: status,
+        preview: preview,
+    });
+}
 ```
 
 ここでの設計意図ははっきりしています。
@@ -246,21 +253,24 @@ def _execute(self, task_id: str, command: str):
 ### 第 4 段階: 次の model call 前に queue を drain する
 
 ```typescript
-def agent_loop(messages: list):
-    while True:
-        notifications = BG.drain_notifications()
-        if notifications:
-            notif_text = "\n".join(
-                f"[bg:{n['task_id']}] {n['preview']}" for n in notifications
-            )
-            messages.append({
-                "role": "user",
-                "content": f"<background-results>\n{notif_text}\n</background-results>",
-            })
-            messages.append({
-                "role": "assistant",
-                "content": "Noted background results.",
-            })
+function agent_loop(messages: any[]): void {
+    while (true) {
+        const notifications = BG.drain_notifications();
+        if (notifications.length > 0) {
+            const notif_text = notifications
+                .map(n => `[bg:${n.task_id}] ${n.preview}`)
+                .join("\n");
+            messages.push({
+                role: "user",
+                content: `<background-results>\n${notif_text}\n</background-results>`,
+            });
+            messages.push({
+                role: "assistant",
+                content: "Noted background results.",
+            });
+        }
+    }
+}
 ```
 
 この構造が大切です。
@@ -290,16 +300,20 @@ def agent_loop(messages: list):
 教材コードは `STALL_THRESHOLD_S` を持ち、長く走りすぎている task を拾えます。
 
 ```typescript
-def detect_stalled(self) -> list[str]:
-    now = time.time()
-    stalled = []
-    for task_id, info in self.tasks.items():
-        if info["status"] != "running":
-            continue
-        elapsed = now - info.get("started_at", now)
-        if elapsed > STALL_THRESHOLD_S:
-            stalled.append(task_id)
-    return stalled
+detect_stalled(): string[] {
+    const now = Date.now() / 1000;
+    const stalled: string[] = [];
+    for (const [task_id, info] of Object.entries(this.tasks)) {
+        if (info.status !== "running") {
+            continue;
+        }
+        const elapsed = now - (info.started_at ?? now);
+        if (elapsed > STALL_THRESHOLD_S) {
+            stalled.push(task_id);
+        }
+    }
+    return stalled;
+}
 ```
 
 ここで学ぶべき本質は sophisticated monitoring ではありません。

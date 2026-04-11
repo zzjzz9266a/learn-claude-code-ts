@@ -182,31 +182,34 @@ Do not throw away the simple model.
 ### 2. Introduce one shared context object
 
 ```typescript
-class ToolUseContext:
-    def __init__(self):
-        self.handlers = {}
-        self.permission_context = {}
-        self.mcp_clients = {}
-        self.messages = []
-        self.app_state = {}
-        self.notifications = []
+class ToolUseContext {
+    handlers: Record<string, any> = {};
+    permission_context: Record<string, any> = {};
+    mcp_clients: Record<string, any> = {};
+    messages: any[] = [];
+    app_state: Record<string, any> = {};
+    notifications: any[] = [];
+}
 ```
 
 ### 3. Let all handlers receive the context
 
 ```typescript
-def run_tool(tool_name: str, tool_input: dict, ctx: ToolUseContext):
-    handler = ctx.handlers[tool_name]
-    return handler(tool_input, ctx)
+function run_tool(tool_name: string, tool_input: Record<string, any>, ctx: ToolUseContext): any {
+    const handler = ctx.handlers[tool_name];
+    return handler(tool_input, ctx);
+}
 ```
 
 ### 4. Route by capability source
 
 ```typescript
-def route_tool(tool_name: str, tool_input: dict, ctx: ToolUseContext):
-    if tool_name.startswith("mcp__"):
-        return run_mcp_tool(tool_name, tool_input, ctx)
-    return run_native_tool(tool_name, tool_input, ctx)
+function route_tool(tool_name: string, tool_input: Record<string, any>, ctx: ToolUseContext): any {
+    if (tool_name.startsWith("mcp__")) {
+        return run_mcp_tool(tool_name, tool_input, ctx);
+    }
+    return run_native_tool(tool_name, tool_input, ctx);
+}
 ```
 
 ## Key Takeaway

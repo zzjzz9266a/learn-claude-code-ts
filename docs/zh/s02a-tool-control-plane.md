@@ -194,31 +194,36 @@ output = handlers[tool_name](tool_input, tool_use_context)
 ### 第二步：引入一个统一 context
 
 ```typescript
-class ToolUseContext:
-    def __init__(self):
-        self.handlers = {}
-        self.permission_context = {}
-        self.mcp_clients = {}
-        self.messages = []
-        self.app_state = {}
-        self.notifications = []
+class ToolUseContext {
+    handlers: Record<string, any> = {};
+    permission_context: Record<string, any> = {};
+    mcp_clients: Record<string, any> = {};
+    messages: any[] = [];
+    app_state: Record<string, any> = {};
+    notifications: any[] = [];
+
+    constructor() {}
+}
 ```
 
 ### 第三步：让所有 handler 都能看到 context
 
 ```typescript
-def run_tool(tool_name: str, tool_input: dict, ctx: ToolUseContext):
-    handler = ctx.handlers[tool_name]
-    return handler(tool_input, ctx)
+function run_tool(tool_name: string, tool_input: Record<string, any>, ctx: ToolUseContext): any {
+    const handler = ctx.handlers[tool_name];
+    return handler(tool_input, ctx);
+}
 ```
 
 ### 第四步：在 router 层分不同能力来源
 
 ```typescript
-def route_tool(tool_name: str, tool_input: dict, ctx: ToolUseContext):
-    if tool_name.startswith("mcp__"):
-        return run_mcp_tool(tool_name, tool_input, ctx)
-    return run_native_tool(tool_name, tool_input, ctx)
+function route_tool(tool_name: string, tool_input: Record<string, any>, ctx: ToolUseContext): any {
+    if (tool_name.startsWith("mcp__")) {
+        return run_mcp_tool(tool_name, tool_input, ctx);
+    }
+    return run_native_tool(tool_name, tool_input, ctx);
+}
 ```
 
 ## 一张应该讲清楚的图

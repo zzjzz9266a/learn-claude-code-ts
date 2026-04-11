@@ -209,44 +209,47 @@ TRANSITIONS = (
 ### 第一步：把外部输入和内部状态分开
 
 ```typescript
-def query(params):
-    state = {
+function query(params: Record<string, any>): void {
+    const state = {
         "messages": params["messages"],
         "tool_use_context": params["tool_use_context"],
         "continuation_count": 0,
-        "has_attempted_compact": False,
-        "max_output_tokens_override": params.get("max_output_tokens_override"),
+        "has_attempted_compact": false,
+        "max_output_tokens_override": params["max_output_tokens_override"],
         "turn_count": 1,
-        "transition": None,
-    }
+        "transition": null,
+    };
 ```
 
 ### 第二步：每一轮先读 state，再决定如何执行
 
 ```typescript
-while True:
-    messages = state["messages"]
-    transition = state["transition"]
-    turn_count = state["turn_count"]
+while (true) {
+    const messages = state["messages"];
+    const transition = state["transition"];
+    const turn_count = state["turn_count"];
 
-    response = call_model(...)
-    ...
+    const response = call_model(/* ... */);
+    // ...
+}
 ```
 
 ### 第三步：所有“继续下一轮”的地方都写回 state
 
 ```typescript
-if response.stop_reason == "tool_use":
-    state["messages"] = append_tool_results(...)
-    state["transition"] = "tool_result_continuation"
-    state["turn_count"] += 1
-    continue
+if (response.stop_reason === "tool_use") {
+    state["messages"] = append_tool_results(/* ... */);
+    state["transition"] = "tool_result_continuation";
+    state["turn_count"] += 1;
+    continue;
+}
 
-if response.stop_reason == "max_tokens":
-    state["messages"].append({"role": "user", "content": CONTINUE_MESSAGE})
-    state["continuation_count"] += 1
-    state["transition"] = "max_tokens_recovery"
-    continue
+if (response.stop_reason === "max_tokens") {
+    state["messages"].push({"role": "user", "content": CONTINUE_MESSAGE});
+    state["continuation_count"] += 1;
+    state["transition"] = "max_tokens_recovery";
+    continue;
+}
 ```
 
 这一点非常关键。

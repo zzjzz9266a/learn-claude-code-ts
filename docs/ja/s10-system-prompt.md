@@ -72,16 +72,18 @@ core
 ## 最小 builder
 
 ```typescript
-class SystemPromptBuilder:
-    def build(self) -> str:
-        parts = []
-        parts.append(self._build_core())
-        parts.append(self._build_tools())
-        parts.append(self._build_skills())
-        parts.append(self._build_memory())
-        parts.append(self._build_claude_md())
-        parts.append(self._build_dynamic())
-        return "\n\n".join(p for p in parts if p)
+class SystemPromptBuilder {
+    build(): string {
+        const parts: string[] = [];
+        parts.push(this._build_core());
+        parts.push(this._build_tools());
+        parts.push(this._build_skills());
+        parts.push(this._build_memory());
+        parts.push(this._build_claude_md());
+        parts.push(this._build_dynamic());
+        return parts.filter(p => p).join("\n\n");
+    }
+}
 ```
 
 ここで重要なのは、各メソッドが 1 つの責務だけを持つことです。

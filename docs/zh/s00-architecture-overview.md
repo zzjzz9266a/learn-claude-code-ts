@@ -351,28 +351,29 @@ Tasks / Teams / Worktree / MCP (s12-s19)
 如果你的目标是自己写一个结构完整、接近真实主脉络的类似系统，最低限度要把下面这些数据结构设计清楚：
 
 ```typescript
-class AppState:
-    messages: list
-    tools: dict
-    tool_schemas: list
+class AppState {
+    messages: any[];
+    tools: Record<string, any>;
+    tool_schemas: any[];
 
-    todo: object | None
-    tasks: object | None
+    todo: object | null;
+    tasks: object | null;
 
-    permissions: object | None
-    hooks: object | None
-    memories: object | None
-    prompt_builder: object | None
+    permissions: object | null;
+    hooks: object | null;
+    memories: object | null;
+    prompt_builder: object | null;
 
-    compact_state: dict
-    recovery_state: dict
+    compact_state: Record<string, any>;
+    recovery_state: Record<string, any>;
 
-    background: object | None
-    cron: object | None
+    background: object | null;
+    cron: object | null;
 
-    teammates: object | None
-    worktree_session: dict | None
-    mcp_clients: dict
+    teammates: object | null;
+    worktree_session: Record<string, any> | null;
+    mcp_clients: Record<string, any>;
+}
 ```
 
 这不是要求你一开始就把这些全写完。

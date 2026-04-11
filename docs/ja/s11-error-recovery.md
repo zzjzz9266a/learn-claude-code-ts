@@ -138,11 +138,11 @@ LLM call
 ### 1. Recovery State
 
 ```typescript
-recovery_state = {
-    "continuation_attempts": 0,
-    "compact_attempts": 0,
-    "transport_attempts": 0,
-}
+const recovery_state = {
+    continuation_attempts: 0,
+    compact_attempts: 0,
+    transport_attempts: 0,
+};
 ```
 
 役割は 2 つあります。
@@ -154,8 +154,8 @@ recovery_state = {
 
 ```typescript
 {
-    "kind": "continue" | "compact" | "backoff" | "fail",
-    "reason": "why this branch was chosen",
+    kind: "continue" | "compact" | "backoff" | "fail";
+    reason: string; // "why this branch was chosen"
 }
 ```
 
@@ -170,10 +170,9 @@ recovery_state = {
 ### 3. Continuation Message
 
 ```typescript
-CONTINUE_MESSAGE = (
-    "Output limit hit. Continue directly from where you stopped. "
-    "Do not restart or repeat."
-)
+const CONTINUE_MESSAGE =
+    "Output limit hit. Continue directly from where you stopped. " +
+    "Do not restart or repeat.";
 ```
 
 この message は地味ですが非常に重要です。
@@ -191,19 +190,21 @@ CONTINUE_MESSAGE = (
 ### 第 1 段階: recovery chooser を作る
 
 ```typescript
-def choose_recovery(stop_reason: str | None, error_text: str | None) -> dict:
-    if stop_reason == "max_tokens":
-        return {"kind": "continue", "reason": "output truncated"}
+function choose_recovery(stop_reason: string | null, error_text: string | null): { kind: string; reason: string } {
+    if (stop_reason === "max_tokens") {
+        return { kind: "continue", reason: "output truncated" };
+    }
 
-    if error_text and "prompt" in error_text and "long" in error_text:
-        return {"kind": "compact", "reason": "context too large"}
+    if (error_text && error_text.includes("prompt") && error_text.includes("long")) {
+        return { kind: "compact", reason: "context too large" };
+    }
 
-    if error_text and any(word in error_text for word in [
-        "timeout", "rate", "unavailable", "connection"
-    ]):
-        return {"kind": "backoff", "reason": "transient transport failure"}
+    if (error_text && ["timeout", "rate", "unavailable", "connection"].some(word => error_text.includes(word))) {
+        return { kind: "backoff", reason: "transient transport failure" };
+    }
 
-    return {"kind": "fail", "reason": "unknown or non-recoverable error"}
+    return { kind: "fail", reason: "unknown or non-recoverable error" };
+}
 ```
 
 この関数がやっている本質は、
@@ -215,30 +216,36 @@ def choose_recovery(stop_reason: str | None, error_text: str | None) -> dict:
 ### 第 2 段階: main loop に差し込む
 
 ```typescript
-while True:
-    try:
-        response = client.messages.create(...)
-        decision = choose_recovery(response.stop_reason, None)
-    except Exception as e:
-        response = None
-        decision = choose_recovery(None, str(e).lower())
+while (true) {
+    try {
+        const response = client.messages.create(...);
+        const decision = choose_recovery(response.stop_reason, null);
+    } catch (e) {
+        const response = null;
+        const decision = choose_recovery(null, String(e).toLowerCase());
+    }
 
-    if decision["kind"] == "continue":
-        messages.append({"role": "user", "content": CONTINUE_MESSAGE})
-        continue
+    if (decision.kind === "continue") {
+        messages.push({ role: "user", content: CONTINUE_MESSAGE });
+        continue;
+    }
 
-    if decision["kind"] == "compact":
-        messages = auto_compact(messages)
-        continue
+    if (decision.kind === "compact") {
+        messages = auto_compact(messages);
+        continue;
+    }
 
-    if decision["kind"] == "backoff":
-        time.sleep(backoff_delay(...))
-        continue
+    if (decision.kind === "backoff") {
+        // time.sleep(backoff_delay(...));
+        continue;
+    }
 
-    if decision["kind"] == "fail":
-        break
+    if (decision.kind === "fail") {
+        break;
+    }
 
-    # normal tool handling
+    // normal tool handling
+}
 ```
 
 ここで一番大事なのは、
@@ -267,12 +274,14 @@ while True:
 最小形はこうです。
 
 ```typescript
-if response.stop_reason == "max_tokens":
-    if state["continuation_attempts"] >= 3:
-        return "Error: output recovery exhausted"
-    state["continuation_attempts"] += 1
-    messages.append({"role": "user", "content": CONTINUE_MESSAGE})
-    continue
+if (response.stop_reason === "max_tokens") {
+    if (state.continuation_attempts >= 3) {
+        return "Error: output recovery exhausted";
+    }
+    state.continuation_attempts++;
+    messages.push({ role: "user", content: CONTINUE_MESSAGE });
+    continue;
+}
 ```
 
 ### 2. compact
@@ -294,12 +303,13 @@ compact は、
 最小例:
 
 ```typescript
-def auto_compact(messages: list) -> list:
-    summary = summarize_messages(messages)
+function auto_compact(messages: any[]): any[] {
+    const summary = summarize_messages(messages);
     return [{
-        "role": "user",
-        "content": "This session was compacted. Continue from this summary:\n" + summary,
-    }]
+        role: "user",
+        content: "This session was compacted. Continue from this summary:\n" + summary,
+    }];
+}
 ```
 
 最低限 summary に残したいのは次です。
@@ -320,12 +330,14 @@ def auto_compact(messages: list) -> list:
 考え方は単純です。
 
 ```typescript
-if decision["kind"] == "backoff":
-    if state["transport_attempts"] >= 3:
-        break
-    state["transport_attempts"] += 1
-    time.sleep(backoff_delay(state["transport_attempts"]))
-    continue
+if (decision.kind === "backoff") {
+    if (state.transport_attempts >= 3) {
+        break;
+    }
+    state.transport_attempts++;
+    // time.sleep(backoff_delay(state.transport_attempts));
+    continue;
+}
 ```
 
 ここで大切なのは「retry すること」よりも、

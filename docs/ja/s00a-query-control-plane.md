@@ -187,32 +187,34 @@ TRANSITIONS = (
 ### 1. 外部入力と内部状態を分ける
 
 ```typescript
-def query(params):
-    state = {
+function query(params: Record<string, any>): void {
+    const state = {
         "messages": params["messages"],
         "tool_use_context": params["tool_use_context"],
         "turn_count": 1,
         "continuation_count": 0,
-        "has_attempted_compact": False,
-        "transition": None,
-    }
+        "has_attempted_compact": false,
+        "transition": null,
+    };
 ```
 
 ### 2. 各ターンで state を読んで実行する
 
 ```typescript
-while True:
-    response = call_model(...)
+while (true) {
+    const response = call_model(/* ... */);
+}
 ```
 
 ### 3. 続行時は必ず state に理由を書き戻す
 
 ```typescript
-if response.stop_reason == "tool_use":
-    state["messages"] = append_tool_results(...)
-    state["transition"] = "tool_result_continuation"
-    state["turn_count"] += 1
-    continue
+if (response.stop_reason === "tool_use") {
+    state["messages"] = append_tool_results(/* ... */);
+    state["transition"] = "tool_result_continuation";
+    state["turn_count"] += 1;
+    continue;
+}
 ```
 
 大事なのは:

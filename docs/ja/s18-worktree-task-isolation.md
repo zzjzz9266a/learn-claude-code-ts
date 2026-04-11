@@ -259,21 +259,22 @@ worktrees.create("auth-refactor", task_id=task["id"])
 ### 第 2 段階: worktree を作り、registry に書く
 
 ```typescript
-def create(self, name: str, task_id: int):
-    path = self.root / ".worktrees" / name
-    branch = f"wt/{name}"
+create(name: string, task_id: number): void {
+    const path = `${this.root}/.worktrees/${name}`;
+    const branch = `wt/${name}`;
 
-    run_git(["worktree", "add", "-b", branch, str(path), "HEAD"])
+    run_git(["worktree", "add", "-b", branch, path, "HEAD"]);
 
-    record = {
+    const record = {
         "name": name,
-        "path": str(path),
+        "path": path,
         "branch": branch,
         "task_id": task_id,
         "status": "active",
-    }
-    self.index["worktrees"].append(record)
-    self._save_index()
+    };
+    this.index["worktrees"].push(record);
+    this._save_index();
+}
 ```
 
 ここで registry は次を答えられるようになります。
@@ -289,14 +290,16 @@ def create(self, name: str, task_id: int):
 lane registry を書くだけでは不十分です。
 
 ```typescript
-def bind_worktree(task_id: int, name: str):
-    task = tasks.load(task_id)
-    task["worktree"] = name
-    task["last_worktree"] = name
-    task["worktree_state"] = "active"
-    if task["status"] == "pending":
-        task["status"] = "in_progress"
-    tasks.save(task)
+function bind_worktree(task_id: number, name: string): void {
+    const task = tasks.load(task_id);
+    task["worktree"] = name;
+    task["last_worktree"] = name;
+    task["worktree_state"] = "active";
+    if (task["status"] === "pending") {
+        task["status"] = "in_progress";
+    }
+    tasks.save(task);
+}
 ```
 
 なぜ両側へ書く必要があるか。
@@ -321,12 +324,15 @@ worktree_run("auth-refactor", "pytest tests/auth -q")
 底では本質的に次のことをしています。
 
 ```typescript
-def enter(self, name: str):
-    self._update_entry(name, last_entered_at=time.time())
-    self.events.emit("worktree.enter", ...)
+enter(name: string): void {
+    this._update_entry(name, { last_entered_at: Date.now() / 1000 });
+    this.events.emit("worktree.enter", /* ... */);
+}
 
-def run(self, name: str, command: str):
-    subprocess.run(command, cwd=worktree_path, ...)
+run(name: string, command: string): void {
+    // subprocess.run equivalent in Node.js
+    // child_process.spawnSync(command, { cwd: worktree_path, ... })
+}
 ```
 
 特に大事なのは `cwd=worktree_path` です。

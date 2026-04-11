@@ -147,11 +147,11 @@ LLM
 最小也应该显式收拢出一个循环状态：
 
 ```typescript
-state = {
-    "messages": [...],
-    "turn_count": 1,
-    "transition_reason": None,
-}
+const state = {
+    messages: [...],
+    turn_count: 1,
+    transition_reason: null,
+};
 ```
 
 这里的 `transition_reason` 先只需要理解成：
@@ -233,38 +233,43 @@ messages.append({"role": "user", "content": results})
 ### 组合成一个完整循环
 
 ```typescript
-def agent_loop(state):
-    while True:
-        response = client.messages.create(
-            model=MODEL,
-            system=SYSTEM,
-            messages=state["messages"],
-            tools=TOOLS,
-            max_tokens=8000,
-        )
+function agent_loop(state: any): void {
+    while (true) {
+        const response = client.messages.create({
+            model: MODEL,
+            system: SYSTEM,
+            messages: state.messages,
+            tools: TOOLS,
+            max_tokens: 8000,
+        });
 
-        state["messages"].append({
-            "role": "assistant",
-            "content": response.content,
-        })
+        state.messages.push({
+            role: "assistant",
+            content: response.content,
+        });
 
-        if response.stop_reason != "tool_use":
-            state["transition_reason"] = None
-            return
+        if (response.stop_reason !== "tool_use") {
+            state.transition_reason = null;
+            return;
+        }
 
-        results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                output = run_tool(block)
-                results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": output,
-                })
+        const results: any[] = [];
+        for (const block of response.content) {
+            if (block.type === "tool_use") {
+                const output = run_tool(block);
+                results.push({
+                    type: "tool_result",
+                    tool_use_id: block.id,
+                    content: output,
+                });
+            }
+        }
 
-        state["messages"].append({"role": "user", "content": results})
-        state["turn_count"] += 1
-        state["transition_reason"] = "tool_result"
+        state.messages.push({ role: "user", content: results });
+        state.turn_count += 1;
+        state.transition_reason = "tool_result";
+    }
+}
 ```
 
 这就是最小 agent loop。

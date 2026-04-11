@@ -140,13 +140,13 @@ If you want a higher-completion execution layer, track each tool explicitly:
 
 ```typescript
 tracked_tool = {
-    "id": "toolu_01",
-    "name": "read_file",
-    "status": "queued",   # queued / executing / completed / yielded
-    "is_concurrency_safe": True,
-    "pending_progress": [],
-    "results": [],
-    "context_modifiers": [],
+    id: "toolu_01",
+    name: "read_file",
+    status: "queued",   // queued / executing / completed / yielded
+    is_concurrency_safe: true,
+    pending_progress: [],
+    results: [],
+    context_modifiers: [],
 }
 ```
 
@@ -201,42 +201,54 @@ queued_context_modifiers = {
 ### Step 1: classify concurrency safety
 
 ```typescript
-def is_concurrency_safe(tool_name: str, tool_input: dict) -> bool:
-    return tool_name in {"read_file", "search_files"}
+function is_concurrency_safe(tool_name: string, tool_input: Record<string, any>): boolean {
+    return ["read_file", "search_files"].includes(tool_name);
+}
 ```
 
 ### Step 2: partition before execution
 
 ```typescript
-batches = partition_tool_calls(tool_uses)
+const batches = partition_tool_calls(tool_uses);
 
-for batch in batches:
-    if batch["is_concurrency_safe"]:
-        run_concurrently(batch["blocks"])
-    else:
-        run_serially(batch["blocks"])
+for (const batch of batches) {
+    if (batch.is_concurrency_safe) {
+        run_concurrently(batch.blocks);
+    } else {
+        run_serially(batch.blocks);
+    }
+}
 ```
 
 ### Step 3: let concurrent batches emit progress
 
 ```typescript
-for update in run_concurrently(...):
-    if update.get("message"):
-        yield update["message"]
+for (const update of run_concurrently(...)) {
+    if (update.message) {
+        yield update.message;
+    }
+}
 ```
 
 ### Step 4: merge context in stable order
 
 ```typescript
-queued_modifiers = {}
+const queued_modifiers: Record<string, any[]> = {};
 
-for update in concurrent_updates:
-    if update.get("context_modifier"):
-        queued_modifiers[update["tool_id"]].append(update["context_modifier"])
+for (const update of concurrent_updates) {
+    if (update.context_modifier) {
+        if (!queued_modifiers[update.tool_id]) {
+            queued_modifiers[update.tool_id] = [];
+        }
+        queued_modifiers[update.tool_id].push(update.context_modifier);
+    }
+}
 
-for tool in original_batch_order:
-    for modifier in queued_modifiers.get(tool["id"], []):
-        context = modifier(context)
+for (const tool of original_batch_order) {
+    for (const modifier of queued_modifiers[tool.id] || []) {
+        context = modifier(context);
+    }
+}
 ```
 
 This is one of the places where a teaching repo can still stay simple while remaining honest about the real system shape.

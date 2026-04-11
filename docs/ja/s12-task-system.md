@@ -57,59 +57,81 @@ s03のTodoManagerはメモリ上のフラットなチェックリストに過ぎ
 1. **TaskManager**: タスクごとに1つのJSONファイル、依存グラフ付きCRUD。
 
 ```typescript
-class TaskManager:
-    def __init__(self, tasks_dir: Path):
-        self.dir = tasks_dir
-        self.dir.mkdir(exist_ok=True)
-        self._next_id = self._max_id() + 1
+class TaskManager {
+    dir: Path;
+    _next_id: number;
 
-    def create(self, subject, description=""):
-        task = {"id": self._next_id, "subject": subject,
-                "status": "pending", "blockedBy": [],
-                "owner": ""}
-        self._save(task)
-        self._next_id += 1
-        return json.dumps(task, indent=2)
+    constructor(tasks_dir: Path) {
+        this.dir = tasks_dir;
+        this.dir.mkdir({ recursive: true });
+        this._next_id = this._max_id() + 1;
+    }
+
+    create(subject: string, description = ""): string {
+        const task = {
+            id: this._next_id,
+            subject: subject,
+            status: "pending",
+            blockedBy: [],
+            owner: "",
+        };
+        this._save(task);
+        this._next_id++;
+        return JSON.stringify(task, null, 2);
+    }
+}
 ```
 
 2. **依存解除**: タスク完了時に、他タスクの`blockedBy`リストから完了IDを除去し、後続タスクをアンブロックする。
 
 ```typescript
-def _clear_dependency(self, completed_id):
-    for f in self.dir.glob("task_*.json"):
-        task = json.loads(f.read_text())
-        if completed_id in task.get("blockedBy", []):
-            task["blockedBy"].remove(completed_id)
-            self._save(task)
+_clear_dependency(completed_id: number): void {
+    for (const f of this.dir.glob("task_*.json")) {
+        const task = JSON.parse(f.read_text());
+        if (task.blockedBy?.includes(completed_id)) {
+            task.blockedBy = task.blockedBy.filter((id: number) => id !== completed_id);
+            this._save(task);
+        }
+    }
+}
 ```
 
 3. **ステータス遷移 + 依存配線**: `update`がステータス変更と依存エッジを担う。
 
 ```typescript
-def update(self, task_id, status=None,
-           add_blocked_by=None, remove_blocked_by=None):
-    task = self._load(task_id)
-    if status:
-        task["status"] = status
-        if status == "completed":
-            self._clear_dependency(task_id)
-    if add_blocked_by:
-        task["blockedBy"] = list(set(task["blockedBy"] + add_blocked_by))
-    if remove_blocked_by:
-        task["blockedBy"] = [x for x in task["blockedBy"] if x not in remove_blocked_by]
-    self._save(task)
+update(
+    task_id: number,
+    status?: string,
+    add_blocked_by?: number[],
+    remove_blocked_by?: number[]
+): void {
+    const task = this._load(task_id);
+    if (status) {
+        task.status = status;
+        if (status === "completed") {
+            this._clear_dependency(task_id);
+        }
+    }
+    if (add_blocked_by) {
+        task.blockedBy = [...new Set([...task.blockedBy, ...add_blocked_by])];
+    }
+    if (remove_blocked_by) {
+        task.blockedBy = task.blockedBy.filter((x: number) => !remove_blocked_by.includes(x));
+    }
+    this._save(task);
+}
 ```
 
 4. 4つのタスクツールをディスパッチマップに追加する。
 
 ```typescript
-TOOL_HANDLERS = {
-    # ...base tools...
-    "task_create": lambda **kw: TASKS.create(kw["subject"]),
-    "task_update": lambda **kw: TASKS.update(kw["task_id"], kw.get("status")),
-    "task_list":   lambda **kw: TASKS.list_all(),
-    "task_get":    lambda **kw: TASKS.get(kw["task_id"]),
-}
+const TOOL_HANDLERS: Record<string, Function> = {
+    // ...base tools...
+    task_create: (kw: any) => TASKS.create(kw.subject),
+    task_update: (kw: any) => TASKS.update(kw.task_id, kw.status),
+    task_list:   () => TASKS.list_all(),
+    task_get:    (kw: any) => TASKS.get(kw.task_id),
+};
 ```
 
 `s12` 以降、タスクグラフが durable なマルチステップ作業のデフォルトになる。`s03` の Todo は軽量な単一セッション用チェックリストとして残る。

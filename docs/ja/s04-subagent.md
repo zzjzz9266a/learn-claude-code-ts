@@ -120,9 +120,10 @@ Parent agent continues
 subagent の本体はここです。
 
 ```typescript
-def run_subagent(prompt: str) -> str:
-    sub_messages = [{"role": "user", "content": prompt}]
-    ...
+function run_subagent(prompt: string): string {
+    const sub_messages = [{"role": "user", "content": prompt}];
+    // ...
+}
 ```
 
 親の `messages` をそのまま共有しないことが、最小の isolation です。
@@ -173,11 +174,12 @@ return {
 この章で 1 つだけ覚えるなら、次の骨格です。
 
 ```typescript
-class SubagentContext:
-    messages: list
-    tools: list
-    handlers: dict
-    max_turns: int
+class SubagentContext {
+    messages: any[];
+    tools: any[];
+    handlers: Record<string, any>;
+    max_turns: number;
+}
 ```
 
 意味は次の通りです。
@@ -264,8 +266,8 @@ subagent は long-lived teammate より前に学ぶべき最小の delegation mo
 そのとき使うのが `fork` です。
 
 ```typescript
-sub_messages = list(parent_messages)
-sub_messages.append({"role": "user", "content": prompt})
+const sub_messages = [...parent_messages];
+sub_messages.push({ role: "user", content: prompt });
 ```
 
 fork の本質は、

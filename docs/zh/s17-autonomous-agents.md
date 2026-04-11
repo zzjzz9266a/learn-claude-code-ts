@@ -240,24 +240,27 @@ identity = {
 ### 第一步：让队友拥有 `WORK -> IDLE` 的循环
 
 ```typescript
-while True:
-    run_work_phase(...)
-    should_resume = run_idle_phase(...)
-    if not should_resume:
-        break
+while (true) {
+    run_work_phase(...);
+    const should_resume = run_idle_phase(...);
+    if (!should_resume) {
+        break;
+    }
+}
 ```
 
 ### 第二步：在 IDLE 里先看邮箱
 
 ```typescript
-def idle_phase(name: str, messages: list) -> bool:
-    inbox = bus.read_inbox(name)
-    if inbox:
-        messages.append({
-            "role": "user",
-            "content": json.dumps(inbox),
-        })
-        return True
+function idle_phase(name: string, messages: any[]): boolean {
+    const inbox = bus.read_inbox(name);
+    if (inbox) {
+        messages.push({
+            role: "user",
+            content: JSON.stringify(inbox),
+        });
+        return true;
+    }
 ```
 
 这一步的意思是：
@@ -267,15 +270,15 @@ def idle_phase(name: str, messages: list) -> bool:
 ### 第三步：如果邮箱没消息，再按“当前角色”扫描可认领任务
 
 ```typescript
-    unclaimed = scan_unclaimed_tasks(role)
-    if unclaimed:
-        task = unclaimed[0]
-        claim_result = claim_task(
-            task["id"],
+    const unclaimed = scan_unclaimed_tasks(role);
+    if (unclaimed && unclaimed.length > 0) {
+        const task = unclaimed[0];
+        const claim_result = claim_task(
+            task.id,
             name,
-            role=role,
-            source="auto",
-        )
+            role,
+            "auto",
+        );
 ```
 
 这里当前代码有两个很关键的升级：
@@ -290,16 +293,16 @@ def idle_phase(name: str, messages: list) -> bool:
 ### 第四步：认领后先补身份，再把任务提示塞回主循环
 
 ```typescript
-        ensure_identity_context(messages, name, role, team_name)
-        messages.append({
-            "role": "user",
-            "content": f"<auto-claimed>Task #{task['id']}: {task['subject']}</auto-claimed>",
-        })
-        messages.append({
-            "role": "assistant",
-            "content": f"{claim_result}. Working on it.",
-        })
-        return True
+        ensure_identity_context(messages, name, role, team_name);
+        messages.push({
+            role: "user",
+            content: `<auto-claimed>Task #${task.id}: ${task.subject}</auto-claimed>`,
+        });
+        messages.push({
+            role: "assistant",
+            content: `${claim_result}. Working on it.`,
+        });
+        return true;
 ```
 
 这一步非常关键。
@@ -318,9 +321,10 @@ def idle_phase(name: str, messages: list) -> bool:
 ### 第五步：长时间没事就退出
 
 ```typescript
-    time.sleep(POLL_INTERVAL)
-    ...
-    return False
+    await sleep(POLL_INTERVAL);
+    // ...
+    return false;
+}
 ```
 
 为什么需要这个退出路径？
@@ -349,13 +353,19 @@ def idle_phase(name: str, messages: list) -> bool:
 所以最小教学版也应该加一个认领锁：
 
 ```typescript
-with claim_lock:
-    task = load(task_id)
-    if task["owner"]:
-        return "already claimed"
-    task["owner"] = name
-    task["status"] = "in_progress"
-    save(task)
+// 使用锁确保原子操作
+async function claim_task_with_lock(task_id: number, name: string): Promise<string> {
+    return await withLock(claim_lock, async () => {
+        const task = load(task_id);
+        if (task.owner) {
+            return "already claimed";
+        }
+        task.owner = name;
+        task.status = "in_progress";
+        save(task);
+        return "claimed";
+    });
+}
 ```
 
 ## 身份重注入为什么重要

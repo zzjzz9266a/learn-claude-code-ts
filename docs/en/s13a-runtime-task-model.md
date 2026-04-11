@@ -142,14 +142,14 @@ A minimal teaching shape can look like this:
 
 ```typescript
 runtime_task = {
-    "id": "b8k2m1qz",
-    "type": "local_bash",
-    "status": "running",
-    "description": "Run pytest",
-    "start_time": 1710000000.0,
-    "end_time": None,
-    "output_file": ".task_outputs/b8k2m1qz.txt",
-    "notified": False,
+    id: "b8k2m1qz",
+    type: "local_bash",
+    status: "running",
+    description: "Run pytest",
+    start_time: 1710000000.0,
+    end_time: null,
+    output_file: ".task_outputs/b8k2m1qz.txt",
+    notified: false,
 }
 ```
 
@@ -186,28 +186,30 @@ Do not overload it.
 ### Step 2: add a separate runtime task manager
 
 ```typescript
-class RuntimeTaskManager:
-    def __init__(self):
-        self.tasks = {}
+class RuntimeTaskManager {
+    tasks: Record<string, any> = {};
+}
 ```
 
 ### Step 3: create runtime tasks when background work starts
 
 ```typescript
-def spawn_bash_task(command: str):
-    task_id = new_runtime_id()
+function spawn_bash_task(command: string): string {
+    const task_id = new_runtime_id();
     runtime_tasks[task_id] = {
-        "id": task_id,
-        "type": "local_bash",
-        "status": "running",
-        "description": command,
-    }
+        id: task_id,
+        type: "local_bash",
+        status: "running",
+        description: command,
+    };
+    return task_id;
+}
 ```
 
 ### Step 4: optionally link runtime execution back to the work graph
 
 ```typescript
-runtime_tasks[task_id]["work_graph_task_id"] = 12
+runtime_tasks[task_id].work_graph_task_id = 12;
 ```
 
 You do not need that field on day one, but it becomes increasingly important once the system reaches teams and worktrees.
