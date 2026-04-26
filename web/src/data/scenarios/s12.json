@@ -27,7 +27,7 @@
     },
     {
       "type": "tool_call",
-      "content": "worktree_run(name: \"auth-refactor\", command: \"npm test tests/auth -q\")\nworktree_run(name: \"ui-login\", command: \"npm test -- login\")",
+      "content": "worktree_run(name: \"auth-refactor\", command: \"pytest tests/auth -q\")\nworktree_run(name: \"ui-login\", command: \"npm test -- login\")",
       "toolName": "worktree_run",
       "annotation": "In this teaching runtime, commands route by lane-scoped cwd; other runtimes may use session-level directory switches. The invariant is explicit execution context."
     },

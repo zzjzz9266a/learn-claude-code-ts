@@ -44,7 +44,7 @@
     },
     {
       "type": "assistant_text",
-      "content": "Done! I've created hello.ts with the print statement. You can run it with `node hello.ts`.",
+      "content": "Done! I've created hello.ts with the print statement. You can run it with `tsx hello.ts`.",
       "annotation": "stop_reason != 'tool_use' -> loop breaks, agent responds to user"
     }
   ]

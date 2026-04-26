@@ -46,7 +46,7 @@ const STEPS: StepState[] = [
     ],
     worktrees: [],
     lanes: [
-      { name: "main", files: ["auth/service.py", "ui/Login.tsx"], highlight: true },
+      { name: "main", files: ["auth/service.ts", "ui/Login.tsx"], highlight: true },
       { name: "wt/auth-refactor", files: [] },
       { name: "wt/ui-login", files: [] },
     ],
@@ -64,7 +64,7 @@ const STEPS: StepState[] = [
     ],
     lanes: [
       { name: "main", files: ["ui/Login.tsx"] },
-      { name: "wt/auth-refactor", files: ["auth/service.py"], highlight: true },
+      { name: "wt/auth-refactor", files: ["auth/service.ts"], highlight: true },
       { name: "wt/ui-login", files: [] },
     ],
   },
@@ -82,7 +82,7 @@ const STEPS: StepState[] = [
     ],
     lanes: [
       { name: "main", files: [] },
-      { name: "wt/auth-refactor", files: ["auth/service.py"] },
+      { name: "wt/auth-refactor", files: ["auth/service.ts"] },
       { name: "wt/ui-login", files: ["ui/Login.tsx"], highlight: true },
     ],
   },
@@ -100,7 +100,7 @@ const STEPS: StepState[] = [
     ],
     lanes: [
       { name: "main", files: [] },
-      { name: "wt/auth-refactor", files: ["auth/service.py", "tests/auth/test_login.py"], highlight: true },
+      { name: "wt/auth-refactor", files: ["auth/service.ts", "tests/auth/test_login.ts"], highlight: true },
       { name: "wt/ui-login", files: ["ui/Login.tsx", "ui/Login.css"] },
     ],
   },

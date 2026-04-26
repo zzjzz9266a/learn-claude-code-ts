@@ -34,7 +34,7 @@
     },
     {
       "type": "tool_call",
-      "content": "node calc.ts 10 + 5",
+      "content": "tsx calc.ts 10 + 5",
       "toolName": "bash",
       "annotation": "Executing task #4: testing"
     },

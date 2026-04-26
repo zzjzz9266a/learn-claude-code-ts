@@ -1,22 +1,18 @@
 # s02: Tool Use
 
-`s01 > [ s02 ] > s03 > s04 > s05 > s06 > s07 > s08 > s09 > s10 > s11 > s12 > s13 > s14 > s15 > s16 > s17 > s18 > s19`
+`s01 > [ s02 ] s03 > s04 > s05 > s06 | s07 > s08 > s09 > s10 > s11 > s12`
 
-## What You'll Learn
+> *"Adding a tool means adding one handler"* -- the loop stays the same; new tools register into the dispatch map.
+>
+> **Harness layer**: Tool dispatch -- expanding what the model can reach.
 
-- How to build a dispatch map (a routing table that maps tool names to handler functions)
-- How path sandboxing prevents the model from escaping its workspace
-- How to add new tools without touching the agent loop
+## Problem
 
-If you ran the s01 agent for more than a few minutes, you probably noticed the cracks. `cat` silently truncates long files. `sed` chokes on special characters. Every bash command is an open door -- nothing stops the model from running `rm -rf /` or reading your SSH keys. You need dedicated tools with guardrails, and you need a clean way to add them.
+With only `bash`, the agent shells out for everything. `cat` truncates unpredictably, `sed` fails on special characters, and every bash call is an unconstrained security surface. Dedicated tools like `read_file` and `write_file` let you enforce path sandboxing at the tool level.
 
-## The Problem
+The key insight: adding tools does not require changing the loop.
 
-With only `bash`, the agent shells out for everything. There is no way to limit what it reads, where it writes, or how much output it returns. A single bad command can corrupt files, leak secrets, or blow past your token budget with a massive stdout dump. What you really want is a small set of purpose-built tools -- `read_file`, `write_file`, `edit_file` -- each with its own safety checks. The question is: how do you wire them in without rewriting the loop every time?
-
-## The Solution
-
-The answer is a dispatch map -- one dictionary that routes tool names to handler functions. Adding a tool means adding one entry. The loop itself never changes.
+## Solution
 
 ```
 +--------+      +-------+      +------------------+
@@ -35,51 +31,72 @@ One lookup replaces any if/elif chain.
 
 ## How It Works
 
-**Step 1.** Each tool gets a handler function. Path sandboxing prevents the model from escaping the workspace -- every requested path is resolved and checked against the working directory before any I/O happens.
+1. Each tool gets a handler function. Path sandboxing prevents workspace escape.
 
 ```typescript
-function safePath(p: string): Path {
-  const path = WORKDIR.resolve(p);
-  if (!path.isRelativeTo(WORKDIR)) {
-    throw new Error(`Path escapes workspace: ${p}`);
-  }
-  return path;
-}
+type ToolInput = Record<string, any>;
 
-function runRead(path: string, limit?: number): string {
-  const text = safePath(path).readText();
-  let lines = text.split("\n");
-  if (limit && limit < lines.length) {
-    lines = lines.slice(0, limit);
-  }
-  return lines.join("\n").slice(0, 50000);  // hard cap to avoid blowing up the context
-}
-```
-
-**Step 2.** The dispatch map links tool names to handlers. This is the entire routing layer -- no if/elif chain, no class hierarchy, just a dictionary.
-
-```typescript
-const TOOL_HANDLERS = {
-  "bash":       (kw: any) => runBash(kw["command"]),
-  "read_file":  (kw: any) => runRead(kw["path"], kw["limit"]),
-  "write_file": (kw: any) => runWrite(kw["path"], kw["content"]),
-  "edit_file":  (kw: any) => runEdit(kw["path"], kw["old_text"], kw["new_text"]),
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
 };
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
+}
 ```
 
-**Step 3.** In the loop, look up the handler by name. The loop body itself is unchanged from s01 -- only the dispatch line is new.
+2. The dispatch map links tool names to handlers.
 
 ```typescript
-for (const block of response.content) {
-  if (block.type === "tool_use") {
-    const handler = TOOL_HANDLERS[block.name];
-    const output = handler ? handler(block.input) : `Unknown tool: ${block.name}`;
-    results.push({
-      type: "tool_result",
-      tool_use_id: block.id,
-      content: output,
-    });
-  }
+type ToolInput = Record<string, any>;
+
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+};
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
+}
+```
+
+3. In the loop, look up the handler by name. The loop body itself is unchanged from s01.
+
+```typescript
+type ToolInput = Record<string, any>;
+
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+};
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
 }
 ```
 
@@ -102,24 +119,6 @@ tsx agents/s02_tool_use.ts
 ```
 
 1. `Read the file requirements.txt`
-2. `Create a file called greet.py with a greet(name) function`
-3. `Edit greet.py to add a docstring to the function`
-4. `Read greet.py to verify the edit worked`
-
-## What You've Mastered
-
-At this point, you can:
-
-- Wire any new tool into the agent by adding one handler and one schema entry -- without touching the loop.
-- Enforce path sandboxing so the model cannot read or write outside its workspace.
-- Explain why a dispatch map scales better than an if/elif chain.
-
-Keep the boundary clean: a tool schema is enough for now. You do not need policy layers, approval UIs, or plugin ecosystems yet. If you can add one new tool without rewriting the loop, you have the core pattern down.
-
-## What's Next
-
-Your agent can now read, write, and edit files safely. But what happens when you ask it to do a 10-step refactoring? It finishes steps 1 through 3 and then starts improvising because it forgot the rest. In s03, you will give the agent a session plan -- a structured todo list that keeps it on track through complex, multi-step tasks.
-
-## Key Takeaway
-
-> The loop should not care how a tool works internally. It only needs a reliable route from tool name to handler.
+2. `Create a file called greet.ts with a greet(name) function`
+3. `Edit greet.ts to add a docstring to the function`
+4. `Read greet.ts to verify the edit worked`

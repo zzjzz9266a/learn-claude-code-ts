@@ -1,6 +1,6 @@
 # s05: Skills
 
-`s01 > s02 > s03 > s04 > [ s05 ] > s06 > s07 > s08 > s09 > s10 > s11 > s12 > s13 > s14 > s15 > s16 > s17 > s18 > s19`
+`s01 > s02 > s03 > s04 > [ s05 ] s06 | s07 > s08 > s09 > s10 > s11 > s12`
 
 > *"必要な知識を、必要な時に読み込む"* -- system prompt ではなく tool_result で注入。
 >
@@ -47,44 +47,48 @@ skills/
 
 2. SkillLoaderが `SKILL.md` を再帰的に探索し、ディレクトリ名をスキル識別子として使用する。
 
-```ts
-class SkillLoader {
-  private skills = new Map<string, { meta: SkillMeta; body: string }>();
+```typescript
+type ToolInput = Record<string, any>;
 
-  constructor(private readonly skillsDir: string) {
-    for (const file of findSkillFiles(skillsDir)) {
-      const text = fs.readFileSync(file, "utf8");
-      const { meta, body } = parseFrontmatter(text);
-      const name = meta.name ?? path.basename(path.dirname(file));
-      this.skills.set(name, { meta, body });
-    }
-  }
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+};
 
-  getDescriptions(): string {
-    return [...this.skills.entries()]
-      .map(([name, skill]) => `  - ${name}: ${skill.meta.description ?? ""}`)
-      .join("\n");
-  }
+const tool: ToolSpec = {
+  name: "load_skill",
+  description: "skill loading",
+  input_schema: { type: "object", properties: {} }
+};
 
-  getContent(name: string): string {
-    const skill = this.skills.get(name);
-    if (!skill) return `Error: Unknown skill "${name}".`;
-    return `<skill name="${name}">\n${skill.body}\n</skill>`;
-  }
+async function handleS05Step(input: ToolInput) {
+  return skills.load(input.name);
+  return tool.name;
 }
 ```
 
 3. 第1層はシステムプロンプトに配置。第2層は通常のツールハンドラ。
 
-```ts
-const SYSTEM = `You are a coding agent at ${WORKDIR}.
-Skills available:
-${SKILL_LOADER.getDescriptions()}`;
+```typescript
+type ToolInput = Record<string, any>;
 
-const TOOL_HANDLERS = {
-  ...BASE_TOOL_HANDLERS,
-  load_skill: ({ name }: { name: string }) => SKILL_LOADER.getContent(name),
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
 };
+
+const tool: ToolSpec = {
+  name: "load_skill",
+  description: "skill loading",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS05Step(input: ToolInput) {
+  return skills.load(input.name);
+  return tool.name;
+}
 ```
 
 モデルはどのスキルが存在するかを知り(低コスト)、関連する時にだけ読み込む(高コスト)。
@@ -102,33 +106,10 @@ const TOOL_HANDLERS = {
 
 ```sh
 cd learn-claude-code
-npm run s05
+tsx agents/s05_skill_loading.ts
 ```
 
 1. `What skills are available?`
 2. `Load the agent-builder skill and follow its instructions`
 3. `I need to do a code review -- load the relevant skill first`
 4. `Build an MCP server using the mcp-builder skill`
-
-## 高完成度システムではどう広がるか
-
-この章の核心は 2 層モデルです。  
-まず軽い一覧で「何があるか」を知らせ、必要になったときだけ本文を深く読み込む。これはそのまま有効です。
-
-より完成度の高いシステムでは、その周りに次のような広がりが出ます。
-
-| 観点 | 教材版 | 高完成度システム |
-|------|--------|------------------|
-| 発見レイヤー | プロンプト内に名前一覧 | 予算付きの専用インベントリやリマインダ面 |
-| 読み込み | `load_skill` が本文を返す | 同じ文脈へ注入、別ワーカーで実行、補助コンテキストとして添付など |
-| ソース | `skills/` ディレクトリのみ | user、project、bundled、plugin、外部ソースなど |
-| 適用範囲 | 常に見える | タスク種別、触ったファイル、明示指示に応じて有効化 |
-| 引数 | なし | スキルへパラメータやテンプレート値を渡せる |
-| ライフサイクル | 一度読むだけ | compact や再開後に復元されることがある |
-| ガードレール | なし | スキルごとの許可範囲や行動制約を持てる |
-
-教材としては、2 層モデルだけで十分です。  
-ここで学ぶべき本質は：
-
-**専門知識は最初から全部抱え込まず、必要な時だけ深く読み込む**  
-という設計です。

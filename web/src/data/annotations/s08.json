@@ -18,22 +18,22 @@
     {
       "id": "daemon-threads",
       "title": "Background Tasks Run as Daemon Threads",
-      "description": "Background task threads are created with daemon=True. In Python, daemon threads are killed automatically when the main thread exits. This prevents a common problem: if the main agent completes its work and exits, but a background thread is still running (waiting on a long API call, stuck in a loop), the process would hang indefinitely. With daemon threads, exit is clean -- the main thread finishes, all daemon threads die, process exits. No zombie processes, no cleanup code needed.",
+      "description": "Background task threads are created with daemon=True. In TypeScript, daemon threads are killed automatically when the main thread exits. This prevents a common problem: if the main agent completes its work and exits, but a background thread is still running (waiting on a long API call, stuck in a loop), the process would hang indefinitely. With daemon threads, exit is clean -- the main thread finishes, all daemon threads die, process exits. No zombie processes, no cleanup code needed.",
       "alternatives": "Non-daemon threads with explicit cleanup (join with timeout, then terminate) give more control over shutdown but require careful lifecycle management. Process-based parallelism (multiprocessing) provides stronger isolation but higher overhead. Daemon threads are the pragmatic choice: minimal code, correct behavior in the common case.",
       "zh": {
         "title": "后台任务以守护线程运行",
-        "description": "后台任务线程以 daemon=True 创建。在 Python 中，守护线程在主线程退出时自动被终止。这防止了一个常见问题：如果主 agent 完成工作并退出，但后台线程仍在运行（等待一个长时间 API 调用或陷入循环），进程会无限挂起。使用守护线程，退出是干净的——主线程结束，所有守护线程自动终止，进程退出。没有僵尸进程，不需要清理代码。"
+        "description": "后台任务线程以 daemon=True 创建。在 TypeScript 中，守护线程在主线程退出时自动被终止。这防止了一个常见问题：如果主 agent 完成工作并退出，但后台线程仍在运行（等待一个长时间 API 调用或陷入循环），进程会无限挂起。使用守护线程，退出是干净的——主线程结束，所有守护线程自动终止，进程退出。没有僵尸进程，不需要清理代码。"
       },
       "ja": {
         "title": "バックグラウンドタスクはデーモンスレッドとして実行",
-        "description": "バックグラウンドタスクのスレッドは daemon=True で作成されます。Python ではデーモンスレッドはメインスレッドの終了時に自動的に終了されます。これにより一般的な問題を防ぎます：メインエージェントが作業を完了して終了しても、バックグラウンドスレッドがまだ実行中（長い API 呼び出しを待機、ループに陥っている）だとプロセスが無限にハングします。デーモンスレッドならクリーンに終了できます――メインスレッドが終了すると全デーモンスレッドが自動終了し、プロセスが終了します。ゾンビプロセスもクリーンアップコードも不要です。"
+        "description": "バックグラウンドタスクのスレッドは daemon=True で作成されます。TypeScript ではデーモンスレッドはメインスレッドの終了時に自動的に終了されます。これにより一般的な問題を防ぎます：メインエージェントが作業を完了して終了しても、バックグラウンドスレッドがまだ実行中（長い API 呼び出しを待機、ループに陥っている）だとプロセスが無限にハングします。デーモンスレッドならクリーンに終了できます――メインスレッドが終了すると全デーモンスレッドが自動終了し、プロセスが終了します。ゾンビプロセスもクリーンアップコードも不要です。"
       }
     },
     {
       "id": "attachment-format",
       "title": "Structured Notification Format with Type Tags",
       "description": "Notifications from background tasks use a structured format: {\"type\": \"attachment\", \"attachment\": {status, result, ...}} instead of plain text strings. The type tag lets the main loop handle different notification types differently: an 'attachment' might be injected into the conversation as a tool_result, while a 'status_update' might just update a progress indicator. Machine-readable notifications also enable programmatic filtering (show only errors, suppress progress updates) and UI rendering (display status as a progress bar, not raw text).",
-      "alternatives": "Plain text notifications are simpler but lose structure. The main loop would have to parse free-form text to determine what happened, which is fragile. A class hierarchy (StatusNotification, ResultNotification, ErrorNotification) is more Pythonic but less portable -- JSON structures work the same way regardless of language or serialization format.",
+      "alternatives": "Plain text notifications are simpler but lose structure. The main loop would have to parse free-form text to determine what happened, which is fragile. A class hierarchy (StatusNotification, ResultNotification, ErrorNotification) is more language-specific but less portable -- JSON structures work the same way regardless of language or serialization format.",
       "zh": {
         "title": "带类型标签的结构化通知格式",
         "description": "后台任务的通知使用结构化格式：{\"type\": \"attachment\", \"attachment\": {status, result, ...}}，而非纯文本字符串。类型标签让主循环可以区别处理不同通知类型：attachment 可能作为 tool_result 注入对话，而 status_update 可能只更新进度指示器。机器可读的通知还支持程序化过滤（只显示错误、抑制进度更新）和 UI 渲染（将状态显示为进度条而非原始文本）。"

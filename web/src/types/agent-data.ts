@@ -10,7 +10,7 @@ export interface AgentVersion {
   keyInsight: string;
   classes: { name: string; startLine: number; endLine: number }[];
   functions: { name: string; signature: string; startLine: number }[];
-  layer: "core" | "hardening" | "runtime" | "platform";
+  layer: "tools" | "planning" | "memory" | "concurrency" | "collaboration";
   source: string;
 }
 
@@ -24,12 +24,12 @@ export interface VersionDiff {
 }
 
 export interface DocContent {
-  version: string | null;
-  slug: string;
+  version: string;
+  slug?: string;
   locale: "en" | "zh" | "ja";
   title: string;
-  kind: "chapter" | "bridge";
-  filename: string;
+  kind?: "chapter" | "bridge";
+  filename?: string;
   content: string; // raw markdown
 }
 

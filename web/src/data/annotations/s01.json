@@ -18,15 +18,15 @@
     {
       "id": "process-as-subagent",
       "title": "Recursive Process Spawning as Subagent Mechanism",
-      "description": "When the agent runs `python v0.py \"subtask\"`, it spawns a completely new process with a fresh LLM context. This child process is effectively a subagent: it has its own system prompt, its own conversation history, and its own task focus. When it finishes, the parent gets the stdout result. This is subagent delegation without any framework -- just Unix process semantics. Each child process naturally isolates concerns because it literally cannot see the parent's context.",
+      "description": "When the agent runs `tsx v0.ts \"subtask\"`, it spawns a completely new process with a fresh LLM context. This child process is effectively a subagent: it has its own system prompt, its own conversation history, and its own task focus. When it finishes, the parent gets the stdout result. This is subagent delegation without any framework -- just Unix process semantics. Each child process naturally isolates concerns because it literally cannot see the parent's context.",
       "alternatives": "A framework-level subagent system (like v3's Task tool) gives more control over what tools the subagent can access and how results are returned. But at v0, the point is to show that process spawning is the most primitive form of agent delegation -- no shared memory, no message passing, just stdin/stdout.",
       "zh": {
         "title": "用递归进程创建实现子代理机制",
-        "description": "当 agent 执行 `python v0.py \"subtask\"` 时，它会创建一个全新的进程，拥有全新的 LLM 上下文。这个子进程实际上就是一个子代理：有自己的系统提示词、对话历史和任务焦点。子进程完成后，父进程通过 stdout 获取结果。这就是不依赖任何框架的子代理委派——纯粹的 Unix 进程语义。每个子进程天然隔离关注点，因为它根本看不到父进程的上下文。"
+        "description": "当 agent 执行 `tsx v0.ts \"subtask\"` 时，它会创建一个全新的进程，拥有全新的 LLM 上下文。这个子进程实际上就是一个子代理：有自己的系统提示词、对话历史和任务焦点。子进程完成后，父进程通过 stdout 获取结果。这就是不依赖任何框架的子代理委派——纯粹的 Unix 进程语义。每个子进程天然隔离关注点，因为它根本看不到父进程的上下文。"
       },
       "ja": {
         "title": "再帰プロセス生成によるサブエージェント機構",
-        "description": "エージェントが `python v0.py \"subtask\"` を実行すると、新しい LLM コンテキストを持つ完全に新しいプロセスが生成されます。この子プロセスは事実上サブエージェントです：独自のシステムプロンプト、会話履歴、タスクフォーカスを持ちます。完了すると、親プロセスは stdout で結果を受け取ります。これはフレームワークなしのサブエージェント委任です——共有メモリもメッセージパッシングもなく、stdin/stdout だけです。各子プロセスは親のコンテキストを参照できないため、関心の分離が自然に実現されます。"
+        "description": "エージェントが `tsx v0.ts \"subtask\"` を実行すると、新しい LLM コンテキストを持つ完全に新しいプロセスが生成されます。この子プロセスは事実上サブエージェントです：独自のシステムプロンプト、会話履歴、タスクフォーカスを持ちます。完了すると、親プロセスは stdout で結果を受け取ります。これはフレームワークなしのサブエージェント委任です——共有メモリもメッセージパッシングもなく、stdin/stdout だけです。各子プロセスは親のコンテキストを参照できないため、関心の分離が自然に実現されます。"
       }
     },
     {

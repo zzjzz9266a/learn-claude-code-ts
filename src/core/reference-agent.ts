@@ -64,7 +64,9 @@ export type WorktreeRecord = {
 
 export const WORKDIR = process.cwd();
 export const MODEL = process.env.MODEL_ID ?? "claude-sonnet-4-6";
-export const TOKEN_THRESHOLD = 100_000;
+export const TOKEN_THRESHOLD = 50_000;
+export const KEEP_RECENT_TOOL_RESULTS = 3;
+export const PRESERVE_RESULT_TOOLS = new Set(["read_file"]);
 export const POLL_INTERVAL = 5;
 export const IDLE_TIMEOUT = 60;
 export const VALID_MSG_TYPES = new Set([
@@ -280,8 +282,16 @@ export function estimateTokens(messages: Message[]) {
 }
 
 export function microcompact(messages: Message[]) {
-  const toolResults: Array<{ content?: unknown }> = [];
+  const toolResults: Array<{ content?: unknown; tool_use_id?: string }> = [];
+  const toolNameById = new Map<string, string>();
   for (const message of messages) {
+    if (message.role === "assistant" && Array.isArray(message.content)) {
+      for (const block of message.content) {
+        if (block?.type === "tool_use" && block.id && block.name) {
+          toolNameById.set(block.id, block.name);
+        }
+      }
+    }
     if (message.role === "user" && Array.isArray(message.content)) {
       for (const part of message.content) {
         if (typeof part === "object" && part !== null && (part as any).type === "tool_result") {
@@ -290,10 +300,12 @@ export function microcompact(messages: Message[]) {
       }
     }
   }
-  if (toolResults.length <= 3) return;
-  for (const part of toolResults.slice(0, -3)) {
+  if (toolResults.length <= KEEP_RECENT_TOOL_RESULTS) return;
+  for (const part of toolResults.slice(0, -KEEP_RECENT_TOOL_RESULTS)) {
     if (typeof part.content === "string" && part.content.length > 100) {
-      part.content = "[cleared]";
+      const toolName = toolNameById.get(part.tool_use_id ?? "") ?? "unknown";
+      if (PRESERVE_RESULT_TOOLS.has(toolName)) continue;
+      part.content = `[Previous: used ${toolName}]`;
     }
   }
 }
@@ -309,13 +321,19 @@ export async function autoCompact(messages: Message[], client = createClient()) 
   const convText = JSON.stringify(messages).slice(-80_000);
   const response = await client.messages.create({
     model: MODEL,
-    messages: [{ role: "user", content: `Summarize for continuity:\n${convText}` }],
+    messages: [{
+      role: "user",
+      content:
+        "Summarize this conversation for continuity. Include: 1) What was accomplished, " +
+        "2) Current state, 3) Key decisions made. Be concise but preserve critical details.\n\n" +
+        convText
+    }],
     max_tokens: 2000
   } as any);
   const summary = response.content
     .filter((block: any) => block.type === "text")
     .map((block: any) => block.text)
-    .join("\n");
+    .join("\n") || "No summary generated.";
   return [
     {
       role: "user" as const,

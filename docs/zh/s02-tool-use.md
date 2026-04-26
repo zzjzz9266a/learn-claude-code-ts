@@ -1,6 +1,6 @@
 # s02: Tool Use (工具使用)
 
-`s00 > s01 > [ s02 ] > s03 > s04 > s05 > s06 > s07 > s08 > s09 > s10 > s11 > s12 > s13 > s14 > s15 > s16 > s17 > s18 > s19`
+`s01 > [ s02 ] s03 > s04 > s05 > s06 | s07 > s08 > s09 > s10 > s11 > s12`
 
 > *"加一个工具, 只加一个 handler"* -- 循环不用动, 新工具注册进 dispatch map 就行。
 >
@@ -34,48 +34,69 @@ One lookup replaces any if/elif chain.
 1. 每个工具有一个处理函数。路径沙箱防止逃逸工作区。
 
 ```typescript
-function safePath(p: string): Path {
-    const path = WORKDIR.resolve(p);
-    if (!path.isRelativeTo(WORKDIR)) {
-        throw new Error(`Path escapes workspace: ${p}`);
-    }
-    return path;
-}
+type ToolInput = Record<string, any>;
 
-function runRead(path: string, limit?: number): string {
-    const text = safePath(path).readText();
-    let lines = text.split("\n");
-    if (limit && limit < lines.length) {
-        lines = lines.slice(0, limit);
-    }
-    return lines.join("\n").slice(0, 50000);
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+};
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
 }
 ```
 
 2. dispatch map 将工具名映射到处理函数。
 
 ```typescript
-const TOOL_HANDLERS = {
-    "bash":       (kw: any) => runBash(kw["command"]),
-    "read_file":  (kw: any) => runRead(kw["path"], kw["limit"]),
-    "write_file": (kw: any) => runWrite(kw["path"], kw["content"]),
-    "edit_file":  (kw: any) => runEdit(kw["path"], kw["old_text"], kw["new_text"]),
+type ToolInput = Record<string, any>;
+
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
 };
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
+}
 ```
 
 3. 循环中按名称查找处理函数。循环体本身与 s01 完全一致。
 
 ```typescript
-for (const block of response.content) {
-    if (block.type === "tool_use") {
-        const handler = TOOL_HANDLERS[block.name];
-        const output = handler ? handler(block.input) : `Unknown tool: ${block.name}`;
-        results.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: output,
-        });
-    }
+type ToolInput = Record<string, any>;
+
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+};
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
 }
 ```
 
@@ -100,142 +121,6 @@ tsx agents/s02_tool_use.ts
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Read the file requirements.txt`
-2. `Create a file called greet.py with a greet(name) function`
-3. `Edit greet.py to add a docstring to the function`
-4. `Read greet.py to verify the edit worked`
-
-## 如果你开始觉得“工具不只是 handler map”
-
-到这里为止，教学主线先把工具讲成：
-
-- schema
-- handler
-- `tool_result`
-
-这是对的，而且必须先这么学。
-
-但如果你继续把系统做大，很快就会发现工具层还会继续长出：
-
-- 权限环境
-- 当前消息和 app state
-- MCP client
-- 文件读取缓存
-- 通知与 query 跟踪
-
-也就是说，在一个结构更完整的系统里，工具层最后会更像一条“工具控制平面”，而不只是一张分发表。
-
-这层不要抢正文主线。  
-你先把这一章吃透，再继续看：
-
-- [`s02a-tool-control-plane.md`](./s02a-tool-control-plane.md)
-
-## 消息规范化
-
-教学版的 `messages` 列表直接发给 API, 所见即所发。但当系统变复杂后 (工具超时、用户取消、压缩替换), 内部消息列表会出现 API 不接受的格式问题。需要在发送前做一次规范化。
-
-### 为什么需要
-
-API 协议有三条硬性约束:
-1. 每个 `tool_use` 块**必须**有匹配的 `tool_result` (通过 `tool_use_id` 关联)
-2. `user` / `assistant` 消息必须**严格交替** (不能连续两条同角色)
-3. 只接受协议定义的字段 (内部元数据会导致 400 错误)
-
-### 实现
-
-```typescript
-function normalize_messages(messages: any[]): any[] {
-    // 将内部消息列表规范化为 API 可接受的格式。
-    const normalized: any[] = [];
-
-    for (const msg of messages) {
-        // Step 1: 剥离内部字段
-        const clean: any = { role: msg.role };
-        if (typeof msg.content === "string") {
-            clean.content = msg.content;
-        } else if (Array.isArray(msg.content)) {
-            clean.content = msg.content.map((block: any) => {
-                const { _internal, _source, _timestamp, ...rest } = block;
-                return rest;
-            });
-        }
-        normalized.push(clean);
-    }
-
-    // Step 2: tool_result 配对补齐
-    // 收集所有已有的 tool_result ID
-    const existing_results = new Set<string>();
-    for (const msg of normalized) {
-        if (Array.isArray(msg.content)) {
-            for (const block of msg.content) {
-                if (block.type === "tool_result") {
-                    existing_results.add(block.tool_use_id);
-                }
-            }
-        }
-    }
-
-    // 找出缺失配对的 tool_use, 插入占位 result
-    for (const msg of normalized) {
-        if (msg.role === "assistant" && Array.isArray(msg.content)) {
-            for (const block of msg.content) {
-                if (block.type === "tool_use" && !existing_results.has(block.id)) {
-                    // 在下一条 user 消息中补齐
-                    normalized.push({
-                        role: "user",
-                        content: [{
-                            type: "tool_result",
-                            tool_use_id: block.id,
-                            content: "(cancelled)",
-                        }],
-                    });
-                }
-            }
-        }
-    }
-
-    // Step 3: 合并连续同角色消息
-    const merged: any[] = normalized.length > 0 ? [normalized[0]] : [];
-    for (let i = 1; i < normalized.length; i++) {
-        const msg = normalized[i];
-        if (msg.role === merged[merged.length - 1].role) {
-            // 合并内容
-            const prev = merged[merged.length - 1];
-            const prev_content = Array.isArray(prev.content)
-                ? prev.content
-                : [{ type: "text", text: prev.content }];
-            const curr_content = Array.isArray(msg.content)
-                ? msg.content
-                : [{ type: "text", text: msg.content }];
-            prev.content = [...prev_content, ...curr_content];
-        } else {
-            merged.push(msg);
-        }
-    }
-
-    return merged;
-}
-```
-
-在 agent loop 中, 每次 API 调用前运行:
-
-```typescript
-response = client.messages.create(
-    model=MODEL, system=system,
-    messages=normalize_messages(messages),  # 规范化后再发送
-    tools=TOOLS, max_tokens=8000,
-)
-```
-
-**关键洞察**: `messages` 列表是系统的内部表示, API 看到的是规范化后的副本。两者不是同一个东西。
-
-## 教学边界
-
-这一章最重要的，不是把完整工具运行时一次讲全，而是先讲清 3 个稳定点：
-
-- tool schema 是给模型看的说明
-- handler map 是代码里的分发入口
-- `tool_result` 是结果回流到主循环的统一出口
-
-只要这三点稳住，读者就已经能自己在不改主循环的前提下新增工具。
-
-权限、hook、并发、流式执行、外部工具来源这些后续层次当然重要，但都应该建立在这层最小分发模型之后。
+2. `Create a file called greet.ts with a greet(name) function`
+3. `Edit greet.ts to add a docstring to the function`
+4. `Read greet.ts to verify the edit worked`

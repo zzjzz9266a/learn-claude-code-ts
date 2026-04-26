@@ -15,13 +15,13 @@
     },
     {
       "type": "tool_call",
-      "content": "npm test tests/ -v --timeout=300",
+      "content": "pytest tests/ -v --timeout=300",
       "toolName": "background_task",
       "annotation": "BackgroundManager spawns a thread for long-running test suite"
     },
     {
       "type": "system_event",
-      "content": "[BackgroundManager] Thread spawned: task_001\nRunning: npm test tests/ -v --timeout=300\nStatus: in_progress",
+      "content": "[BackgroundManager] Thread spawned: task_001\nRunning: pytest tests/ -v --timeout=300\nStatus: in_progress",
       "annotation": "Thread is running independently -- main loop continues"
     },
     {
@@ -44,7 +44,7 @@
     },
     {
       "type": "system_event",
-      "content": "[Notification] Background task_001 completed\nResult: 47 tests passed, 2 failed\nFailed: auth.test.ts::test_token_expiry, api.test.ts::test_rate_limit",
+      "content": "[Notification] Background task_001 completed\nResult: 47 tests passed, 2 failed\nFailed: test_auth.ts::test_token_expiry, test_api.ts::test_rate_limit",
       "annotation": "Background thread notifies main loop via notification queue"
     },
     {

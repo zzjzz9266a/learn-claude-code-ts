@@ -1,6 +1,6 @@
 # s02: Tool Use
 
-`s01 > [ s02 ] > s03 > s04 > s05 > s06 > s07 > s08 > s09 > s10 > s11 > s12 > s13 > s14 > s15 > s16 > s17 > s18 > s19`
+`s01 > [ s02 ] s03 > s04 > s05 > s06 | s07 > s08 > s09 > s10 > s11 > s12`
 
 > *"ツールを足すなら、ハンドラーを1つ足すだけ"* -- ループは変わらない。新ツールは dispatch map に登録するだけ。
 >
@@ -34,48 +34,69 @@ One lookup replaces any if/elif chain.
 1. 各ツールにハンドラ関数を定義する。パスのサンドボックス化でワークスペース外への脱出を防ぐ。
 
 ```typescript
-function safePath(p: string): Path {
-    const path = WORKDIR.resolve(p);
-    if (!path.isRelativeTo(WORKDIR)) {
-        throw new Error(`Path escapes workspace: ${p}`);
-    }
-    return path;
-}
+type ToolInput = Record<string, any>;
 
-function runRead(path: string, limit?: number): string {
-    const text = safePath(path).readText();
-    let lines = text.split("\n");
-    if (limit && limit < lines.length) {
-        lines = lines.slice(0, limit);
-    }
-    return lines.join("\n").slice(0, 50000);
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+};
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
 }
 ```
 
 2. ディスパッチマップがツール名とハンドラを結びつける。
 
 ```typescript
-const TOOL_HANDLERS = {
-    "bash":       (kw: any) => runBash(kw["command"]),
-    "read_file":  (kw: any) => runRead(kw["path"], kw["limit"]),
-    "write_file": (kw: any) => runWrite(kw["path"], kw["content"]),
-    "edit_file":  (kw: any) => runEdit(kw["path"], kw["old_text"], kw["new_text"]),
+type ToolInput = Record<string, any>;
+
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
 };
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
+}
 ```
 
 3. ループ内で名前によりハンドラをルックアップする。ループ本体はs01から不変。
 
 ```typescript
-for (const block of response.content) {
-    if (block.type === "tool_use") {
-        const handler = TOOL_HANDLERS[block.name];
-        const output = handler ? handler(block.input) : `Unknown tool: ${block.name}`;
-        results.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: output,
-        });
-    }
+type ToolInput = Record<string, any>;
+
+type ToolSpec = {
+  name: string;
+  description: string;
+  input_schema: Record<string, unknown>;
+};
+
+const tool: ToolSpec = {
+  name: "read_file",
+  description: "tool dispatch",
+  input_schema: { type: "object", properties: {} }
+};
+
+async function handleS02Step(input: ToolInput) {
+  return handlers[toolName]?.(input) ?? `Unknown tool: ${toolName}`;
+  return tool.name;
 }
 ```
 
@@ -98,33 +119,6 @@ tsx agents/s02_tool_use.ts
 ```
 
 1. `Read the file requirements.txt`
-2. `Create a file called greet.py with a greet(name) function`
-3. `Edit greet.py to add a docstring to the function`
-4. `Read greet.py to verify the edit worked`
-
-## 教学上の簡略化
-
-この章で本当に学ぶべきなのは、細かな production 差分ではありません。
-
-学ぶべき中心は次の 4 点です。
-
-1. モデルに見せる tool schema がある
-2. 実装側には handler がある
-3. 両者は dispatch map で結ばれる
-4. 実行結果は `tool_result` として主ループへ戻る
-
-より完成度の高い system では、この周りに権限、hook、並列実行、結果永続化、外部 capability routing などが増えていきます。
-
-しかし、それらをここで全部追い始めると、初学者は
-
-- schema と handler の違い
-- dispatch map の役割
-- `tool_result` がなぜ主ループへ戻るのか
-
-という本章の主眼を見失いやすくなります。
-
-この段階では、まず
-
-**新しい tool を足しても主ループ自体は作り替えなくてよい**
-
-という設計の強さを、自分で実装して理解できれば十分です。
+2. `Create a file called greet.ts with a greet(name) function`
+3. `Edit greet.ts to add a docstring to the function`
+4. `Read greet.ts to verify the edit worked`
