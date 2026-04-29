@@ -1,17 +1,17 @@
 [English](./README.md) | [中文](./README-zh.md) | [日本語](./README-ja.md)
 # Learn Claude Code -- Harness Engineering for Real Agents
 
-## The Model IS the Agent
+## Agency Comes from the Model. An Agent Product = Model + Harness.
 
-Before we talk about code, let's get one thing absolutely straight.
+Before we talk about code, let's get one thing straight.
 
-**An agent is a model. Not a framework. Not a prompt chain. Not a drag-and-drop workflow.**
+**Agency -- the ability to perceive, reason, and act -- comes from model training, not from external code orchestration. But a working agent product needs both the model and the harness. The model is the driver, the harness is the vehicle. This repo teaches you how to build the vehicle.**
 
-### What an Agent IS
+### Where Agency Comes From
 
-An agent is a neural network -- a Transformer, an RNN, a learned function -- that has been trained, through billions of gradient updates on action-sequence data, to perceive an environment, reason about goals, and take actions to achieve them. The word "agent" in AI has always meant this. Always.
+At the core of every agent is a neural network -- a Transformer, an RNN, a learned function -- that has been trained, through billions of gradient updates on action-sequence data, to perceive an environment, reason about goals, and take actions. Agency is never granted by the surrounding code. It is learned by the model during training.
 
-A human is an agent. A biological neural network, shaped by millions of years of evolutionary training, perceiving the world through senses, reasoning through a brain, acting through a body. When DeepMind, OpenAI, or Anthropic say "agent," they mean the same thing the field has meant since its inception: **a model that has learned to act.**
+Humans are the best example. A biological neural network shaped by millions of years of evolutionary training, perceiving the world through senses, reasoning through a brain, acting through a body. When DeepMind, OpenAI, or Anthropic say "agent," the core of what they mean is always the same thing: **a model that has learned to act, plus the infrastructure that lets it operate in a specific environment.**
 
 The proof is written in history:
 
@@ -25,7 +25,7 @@ The proof is written in history:
 
 - **2024-2025 -- LLM agents reshape software engineering.** Claude, GPT, Gemini -- large language models trained on the entirety of human code and reasoning -- are deployed as coding agents. They read codebases, write implementations, debug failures, coordinate in teams. The architecture is identical to every agent before them: a trained model, placed in an environment, given tools to perceive and act. The only difference is the scale of what they've learned and the generality of the tasks they solve.
 
-Every one of these milestones shares the same truth: **the "agent" is never the surrounding code. The agent is always the model.**
+Every one of these milestones points to the same fact: agency -- the ability to perceive, reason, and act -- is trained, not coded. But every agent also needed an environment to operate in: the Atari emulator, the Dota 2 client, the StarCraft II engine, the IDE and terminal. The model provides intelligence. The environment provides the action space. Together they form a complete agent.
 
 ### What an Agent Is NOT
 
@@ -381,6 +381,6 @@ MIT
 
 ---
 
-**The model is the agent. The code is the harness. Build great harnesses. The agent will do the rest.**
+**Agency comes from the model. The harness makes agency real. Build great harnesses. The model will do the rest.**
 
 **Bash is all you need. Real agents are all the universe needs.**
