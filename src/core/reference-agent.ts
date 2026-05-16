@@ -2,9 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { config as loadDotenv } from "dotenv";
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync, appendFileSync } from "node:fs";
 import { promises as fs } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
 import { cwd } from "node:process";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
 loadDotenv({ override: true, quiet: true });
@@ -65,6 +65,7 @@ export type WorktreeRecord = {
 export const WORKDIR = process.cwd();
 export const MODEL = process.env.MODEL_ID ?? "claude-sonnet-4-6";
 export const TOKEN_THRESHOLD = 50_000;
+export const FULL_TOKEN_THRESHOLD = 100_000;
 export const KEEP_RECENT_TOOL_RESULTS = 3;
 export const PRESERVE_RESULT_TOOLS = new Set(["read_file"]);
 export const POLL_INTERVAL = 5;
@@ -93,15 +94,21 @@ export function createSystemPrompt(instructions: string) {
 
 export function safePath(relativePath: string) {
   const fullPath = resolve(WORKDIR, relativePath);
-  if (!fullPath.startsWith(resolve(WORKDIR))) {
+  const root = resolve(WORKDIR);
+  const fromRoot = relative(root, fullPath);
+  if (fromRoot === ".." || fromRoot.startsWith(`..${sep}`) || resolve(fromRoot) === fromRoot) {
     throw new Error(`Path escapes workspace: ${relativePath}`);
   }
   return fullPath;
 }
 
-export async function runCommand(command: string, commandCwd = WORKDIR, timeoutMs = 120_000) {
+function isDangerousCommand(command: string) {
   const dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"];
-  if (dangerous.some((pattern) => command.includes(pattern))) {
+  return dangerous.some((pattern) => command.includes(pattern));
+}
+
+export async function runCommand(command: string, commandCwd = WORKDIR, timeoutMs = 120_000) {
+  if (isDangerousCommand(command)) {
     return "Error: Dangerous command blocked";
   }
 
@@ -118,7 +125,7 @@ export async function runCommand(command: string, commandCwd = WORKDIR, timeoutM
       if (!settled) {
         settled = true;
         child.kill("SIGTERM");
-        resolvePromise("Error: Timeout");
+        resolvePromise(`Error: Timeout (${Math.round(timeoutMs / 1000)}s)`);
       }
     }, timeoutMs);
 
@@ -232,6 +239,49 @@ export class TodoManager {
   }
 }
 
+export class SessionTodoManager {
+  items: Array<{ id: string; text: string; status: string }> = [];
+
+  update(items: Array<{ id?: string; text?: string; status?: string }>) {
+    if (items.length > 20) throw new Error("Max 20 todos allowed");
+    const validated: Array<{ id: string; text: string; status: string }> = [];
+    let inProgress = 0;
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const text = String(item.text ?? "").trim();
+      const status = String(item.status ?? "pending").toLowerCase();
+      const id = String(item.id ?? index + 1);
+      if (!text) throw new Error(`Item ${id}: text required`);
+      if (!["pending", "in_progress", "completed"].includes(status)) {
+        throw new Error(`Item ${id}: invalid status '${status}'`);
+      }
+      if (status === "in_progress") inProgress += 1;
+      validated.push({ id, text, status });
+    }
+    if (inProgress > 1) throw new Error("Only one task can be in_progress at a time");
+    this.items = validated;
+    return this.render();
+  }
+
+  render() {
+    if (this.items.length === 0) return "No todos.";
+    const done = this.items.filter((item) => item.status === "completed").length;
+    return [
+      ...this.items.map((item) => {
+        const marker =
+          item.status === "completed"
+            ? "[x]"
+            : item.status === "in_progress"
+              ? "[>]"
+              : "[ ]";
+        return `${marker} #${item.id}: ${item.text}`;
+      }),
+      "",
+      `(${done}/${this.items.length} completed)`
+    ].join("\n");
+  }
+}
+
 export class SkillLoader {
   skills = new Map<string, { meta: Record<string, string>; body: string }>();
 
@@ -253,7 +303,7 @@ export class SkillLoader {
             }
             body = match[2].trim();
           }
-          const name = meta.name ?? entry.name;
+          const name = meta.name ?? basename(resolve(full, ".."));
           this.skills.set(name, { meta, body });
         }
       }
@@ -264,7 +314,10 @@ export class SkillLoader {
   descriptions() {
     if (this.skills.size === 0) return "(no skills)";
     return [...this.skills.entries()]
-      .map(([name, skill]) => `  - ${name}: ${skill.meta.description ?? "-"}`)
+      .map(([name, skill]) => {
+        const tags = skill.meta.tags ? ` [${skill.meta.tags}]` : "";
+        return `  - ${name}: ${skill.meta.description ?? "-"}${tags}`;
+      })
       .join("\n");
   }
 
@@ -310,7 +363,11 @@ export function microcompact(messages: Message[]) {
   }
 }
 
-export async function autoCompact(messages: Message[], client = createClient()) {
+export async function autoCompact(
+  messages: Message[],
+  client = createClient(),
+  prefix = "Conversation compressed"
+) {
   mkdirSync(TRANSCRIPT_DIR, { recursive: true });
   const transcriptPath = join(TRANSCRIPT_DIR, `transcript_${Date.now()}.jsonl`);
   writeFileSync(
@@ -337,7 +394,7 @@ export async function autoCompact(messages: Message[], client = createClient()) 
   return [
     {
       role: "user" as const,
-      content: `[Compressed. Transcript: ${transcriptPath}]\n${summary}`
+      content: `[${prefix}. Transcript: ${transcriptPath}]\n\n${summary}`
     }
   ];
 }
@@ -395,10 +452,14 @@ export class TaskManager {
     taskId: number,
     status?: TaskRecord["status"],
     addBlockedBy?: number[],
-    removeBlockedBy?: number[]
+    removeBlockedBy?: number[],
+    owner?: string
   ) {
     const task = this.load(taskId);
     if (status) {
+      if (!["pending", "in_progress", "completed", "deleted"].includes(status)) {
+        throw new Error(`Invalid status: ${status}`);
+      }
       task.status = status;
       if (status === "completed") {
         for (const name of readdirSync(this.tasksDir).filter((entry) => /^task_\d+\.json$/.test(entry))) {
@@ -412,16 +473,22 @@ export class TaskManager {
         return `Task ${taskId} deleted`;
       }
     }
+    if (owner !== undefined) task.owner = owner;
     if (addBlockedBy) task.blockedBy = [...new Set([...(task.blockedBy ?? []), ...addBlockedBy])];
     if (removeBlockedBy) task.blockedBy = (task.blockedBy ?? []).filter((id) => !removeBlockedBy.includes(id));
+    task.updated_at = Date.now() / 1000;
     this.save(task);
     return JSON.stringify(task, null, 2);
   }
 
   claim(taskId: number, owner: string) {
     const task = this.load(taskId);
+    if (task.owner) return `Error: Task ${taskId} has already been claimed by ${task.owner}`;
+    if (task.status !== "pending") return `Error: Task ${taskId} cannot be claimed because its status is '${task.status}'`;
+    if (task.blockedBy && task.blockedBy.length > 0) return `Error: Task ${taskId} is blocked by other task(s) and cannot be claimed yet`;
     task.owner = owner;
     task.status = "in_progress";
+    task.updated_at = Date.now() / 1000;
     this.save(task);
     return `Claimed task #${taskId} for ${owner}`;
   }
@@ -447,6 +514,7 @@ export class TaskManager {
     if (files.length === 0) return "No tasks.";
     return files
       .map((name) => JSON.parse(readFileSync(join(this.tasksDir, name), "utf8")) as TaskRecord)
+      .sort((a, b) => a.id - b.id)
       .map((task) => {
         const marker =
           task.status === "completed"
@@ -467,13 +535,43 @@ export class BackgroundManager {
   tasks = new Map<string, BackgroundTask>();
   notifications: Array<{ task_id: string; status: string; result: string }> = [];
 
-  run(command: string, timeout = 120) {
+  run(command: string, timeout = 300) {
+    if (isDangerousCommand(command)) {
+      return "Error: Dangerous command blocked";
+    }
     const taskId = randomUUID().slice(0, 8);
     this.tasks.set(taskId, { status: "running", command, result: null });
-    void runCommand(command, WORKDIR, timeout * 1000).then((result) => {
-      const status = result.startsWith("Error:") ? "error" : "completed";
-      this.tasks.set(taskId, { status, command, result });
-      this.notifications.push({ task_id: taskId, status, result: result.slice(0, 500) });
+    const child = spawn(command, {
+      cwd: WORKDIR,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let output = "";
+    let settled = false;
+    const finish = (status: string, result: string) => {
+      if (settled) return;
+      settled = true;
+      const text = result || "(no output)";
+      this.tasks.set(taskId, { status, command, result: text });
+      this.notifications.push({ task_id: taskId, status, result: text.slice(0, 500) });
+    };
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish("timeout", `Error: Timeout (${timeout}s)`);
+    }, timeout * 1000);
+    child.stdout.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      finish("error", `Error: ${String(error)}`);
+    });
+    child.on("close", () => {
+      clearTimeout(timer);
+      finish("completed", output.trim().slice(0, 50_000));
     });
     return `Background task ${taskId} started: ${command.slice(0, 80)}`;
   }
@@ -481,8 +579,8 @@ export class BackgroundManager {
   check(taskId?: string) {
     if (taskId) {
       const task = this.tasks.get(taskId);
-      if (!task) return `Unknown: ${taskId}`;
-      return `[${task.status}] ${task.result ?? "(running)"}`;
+      if (!task) return `Error: Unknown task ${taskId}`;
+      return `[${task.status}] ${task.command.slice(0, 60)}\n${task.result ?? "(running)"}`;
     }
     if (this.tasks.size === 0) return "No bg tasks.";
     return [...this.tasks.entries()]
@@ -503,6 +601,9 @@ export class MessageBus {
   }
 
   send(sender: string, to: string, content: string, msgType = "message", extra?: Record<string, unknown>) {
+    if (!VALID_MSG_TYPES.has(msgType)) {
+      return `Error: Invalid type '${msgType}'. Valid: ${JSON.stringify([...VALID_MSG_TYPES])}`;
+    }
     const payload = JSON.stringify({
       type: msgType,
       from: sender,
@@ -536,6 +637,270 @@ export class MessageBus {
   }
 }
 
+const sleep = (ms: number) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+
+export function scanUnclaimedTasks(tasksDir = TASKS_DIR) {
+  mkdirSync(tasksDir, { recursive: true });
+  return readdirSync(tasksDir)
+    .filter((name) => /^task_\d+\.json$/.test(name))
+    .sort()
+    .map((name) => JSON.parse(readFileSync(join(tasksDir, name), "utf8")) as TaskRecord)
+    .filter((task) => task.status === "pending" && !task.owner && (!task.blockedBy || task.blockedBy.length === 0));
+}
+
+export function makeIdentityBlock(name: string, role: string, teamName: string): Message {
+  return {
+    role: "user",
+    content: `<identity>You are '${name}', role: ${role}, team: ${teamName}. Continue your work.</identity>`
+  };
+}
+
+export class ProtocolState {
+  shutdownRequests = new Map<string, { target: string; status: string }>();
+  planRequests = new Map<string, { from: string; plan: string; status: string }>();
+
+  requestShutdown(bus: MessageBus, teammate: string) {
+    const requestId = randomUUID().slice(0, 8);
+    this.shutdownRequests.set(requestId, { target: teammate, status: "pending" });
+    bus.send("lead", teammate, "Please shut down gracefully.", "shutdown_request", { request_id: requestId });
+    return `Shutdown request ${requestId} sent to '${teammate}' (status: pending)`;
+  }
+
+  recordShutdownResponse(requestId: string, approve: boolean) {
+    const request = this.shutdownRequests.get(requestId);
+    if (request) request.status = approve ? "approved" : "rejected";
+  }
+
+  checkShutdown(requestId: string) {
+    return JSON.stringify(this.shutdownRequests.get(requestId) ?? { error: "not found" });
+  }
+
+  submitPlan(bus: MessageBus, sender: string, plan: string) {
+    const requestId = randomUUID().slice(0, 8);
+    this.planRequests.set(requestId, { from: sender, plan, status: "pending" });
+    bus.send(sender, "lead", plan, "plan_approval_response", { request_id: requestId, plan });
+    return `Plan submitted (request_id=${requestId}). Waiting for lead approval.`;
+  }
+
+  reviewPlan(bus: MessageBus, requestId: string, approve: boolean, feedback = "") {
+    const request = this.planRequests.get(requestId);
+    if (!request) return `Error: Unknown plan request_id '${requestId}'`;
+    request.status = approve ? "approved" : "rejected";
+    bus.send("lead", request.from, feedback, "plan_approval_response", {
+      request_id: requestId,
+      approve,
+      feedback
+    });
+    return `Plan ${request.status} for '${request.from}'`;
+  }
+}
+
+type TeamMode = "basic" | "protocols" | "autonomous";
+
+export class TeammateManager {
+  configPath: string;
+  config: { team_name: string; members: Array<{ name: string; role: string; status: string }> };
+  running = new Map<string, Promise<void>>();
+
+  constructor(
+    private readonly teamDir = TEAM_DIR,
+    private readonly bus = new MessageBus(),
+    private readonly mode: TeamMode = "basic",
+    private readonly protocols = new ProtocolState(),
+    private readonly taskManager = new TaskManager()
+  ) {
+    mkdirSync(teamDir, { recursive: true });
+    this.configPath = join(teamDir, "config.json");
+    this.config = existsSync(this.configPath)
+      ? JSON.parse(readFileSync(this.configPath, "utf8"))
+      : { team_name: "default", members: [] };
+  }
+
+  private saveConfig() {
+    writeFileSync(this.configPath, `${JSON.stringify(this.config, null, 2)}\n`, "utf8");
+  }
+
+  private findMember(name: string) {
+    return this.config.members.find((member) => member.name === name);
+  }
+
+  private setStatus(name: string, status: string) {
+    const member = this.findMember(name);
+    if (member) {
+      member.status = status;
+      this.saveConfig();
+    }
+  }
+
+  spawn(name: string, role: string, prompt: string) {
+    let member = this.findMember(name);
+    if (member) {
+      if (!["idle", "shutdown"].includes(member.status)) return `Error: '${name}' is currently ${member.status}`;
+      member.status = "working";
+      member.role = role;
+    } else {
+      member = { name, role, status: "working" };
+      this.config.members.push(member);
+    }
+    this.saveConfig();
+    const task = this.loop(name, role, prompt).catch(() => {
+      this.setStatus(name, "idle");
+    });
+    this.running.set(name, task);
+    return `Spawned '${name}' (role: ${role})`;
+  }
+
+  private teammateTools(): ToolSchema[] {
+    const tools: ToolSchema[] = [
+      { name: "bash", description: "Run a shell command.", input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } },
+      { name: "read_file", description: "Read file contents.", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+      { name: "write_file", description: "Write content to file.", input_schema: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } }, required: ["path", "content"] } },
+      { name: "edit_file", description: "Replace exact text in file.", input_schema: { type: "object", properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" } }, required: ["path", "old_text", "new_text"] } },
+      { name: "send_message", description: "Send message to a teammate.", input_schema: { type: "object", properties: { to: { type: "string" }, content: { type: "string" }, msg_type: { type: "string", enum: [...VALID_MSG_TYPES] } }, required: ["to", "content"] } },
+      { name: "read_inbox", description: "Read and drain your inbox.", input_schema: { type: "object", properties: {} } }
+    ];
+    if (this.mode === "protocols" || this.mode === "autonomous") {
+      tools.push(
+        { name: "shutdown_response", description: "Respond to a shutdown request. Approve to shut down, reject to keep working.", input_schema: { type: "object", properties: { request_id: { type: "string" }, approve: { type: "boolean" }, reason: { type: "string" } }, required: ["request_id", "approve"] } },
+        { name: "plan_approval", description: "Submit a plan for lead approval. Provide plan text.", input_schema: { type: "object", properties: { plan: { type: "string" } }, required: ["plan"] } }
+      );
+    }
+    if (this.mode === "autonomous") {
+      tools.push(
+        { name: "idle", description: "Signal that you have no more work. Enters idle polling phase.", input_schema: { type: "object", properties: {} } },
+        { name: "claim_task", description: "Claim a task from the task board by ID.", input_schema: { type: "object", properties: { task_id: { type: "integer" } }, required: ["task_id"] } }
+      );
+    }
+    return tools;
+  }
+
+  private async exec(sender: string, toolName: string, args: Record<string, any>) {
+    if (toolName === "bash") return runCommand(args.command);
+    if (toolName === "read_file") return readWorkspaceFile(args.path, args.limit);
+    if (toolName === "write_file") return writeWorkspaceFile(args.path, args.content);
+    if (toolName === "edit_file") return editWorkspaceFile(args.path, args.old_text, args.new_text);
+    if (toolName === "send_message") return this.bus.send(sender, args.to, args.content, args.msg_type ?? "message");
+    if (toolName === "read_inbox") return JSON.stringify(this.bus.readInbox(sender), null, 2);
+    if (toolName === "shutdown_response") {
+      this.protocols.recordShutdownResponse(args.request_id, Boolean(args.approve));
+      this.bus.send(sender, "lead", args.reason ?? "", "shutdown_response", {
+        request_id: args.request_id,
+        approve: Boolean(args.approve)
+      });
+      return `Shutdown ${args.approve ? "approved" : "rejected"}`;
+    }
+    if (toolName === "plan_approval") return this.protocols.submitPlan(this.bus, sender, args.plan ?? "");
+    if (toolName === "claim_task") return this.taskManager.claim(args.task_id, sender);
+    return `Unknown tool: ${toolName}`;
+  }
+
+  private async loop(name: string, role: string, prompt: string) {
+    const client = createClient();
+    const teamName = this.config.team_name;
+    const messages: Message[] = [{ role: "user", content: prompt }];
+    const tools = this.teammateTools();
+    const system =
+      this.mode === "autonomous"
+        ? `You are '${name}', role: ${role}, team: ${teamName}, at ${WORKDIR}. Use idle tool when you have no more work. You will auto-claim new tasks.`
+        : this.mode === "protocols"
+          ? `You are '${name}', role: ${role}, at ${WORKDIR}. Submit plans via plan_approval before major work. Respond to shutdown_request with shutdown_response.`
+          : `You are '${name}', role: ${role}, at ${WORKDIR}. Use send_message to communicate. Complete your task.`;
+
+    while (true) {
+      for (let turn = 0; turn < 50; turn += 1) {
+        const inbox = this.bus.readInbox(name);
+        for (const message of inbox) {
+          if (this.mode === "autonomous" && message.type === "shutdown_request") {
+            this.setStatus(name, "shutdown");
+            return;
+          }
+          messages.push({ role: "user", content: JSON.stringify(message) });
+        }
+        const response = await client.messages.create({ model: MODEL, system, messages, tools, max_tokens: 8000 } as any);
+        messages.push({ role: "assistant", content: response.content });
+        if (response.stop_reason !== "tool_use") break;
+        let idleRequested = false;
+        let shouldExit = false;
+        const results: JsonValue[] = [];
+        for (const block of response.content) {
+          if (block.type !== "tool_use") continue;
+          let output: string;
+          if (block.name === "idle") {
+            idleRequested = true;
+            output = "Entering idle phase. Will poll for new tasks.";
+          } else {
+            const input = block.input as Record<string, any>;
+            output = String(await this.exec(name, block.name, input));
+            if (block.name === "shutdown_response" && input.approve) shouldExit = true;
+          }
+          console.log(`  [${name}] ${block.name}: ${output.slice(0, 120)}`);
+          results.push({ type: "tool_result", tool_use_id: block.id, content: output });
+        }
+        messages.push({ role: "user", content: results });
+        if (shouldExit) {
+          this.setStatus(name, "shutdown");
+          return;
+        }
+        if (idleRequested) break;
+      }
+
+      if (this.mode !== "autonomous") break;
+      this.setStatus(name, "idle");
+      let resume = false;
+      const polls = Math.floor(IDLE_TIMEOUT / Math.max(POLL_INTERVAL, 1));
+      for (let i = 0; i < polls; i += 1) {
+        await sleep(POLL_INTERVAL * 1000);
+        const inbox = this.bus.readInbox(name);
+        if (inbox.length > 0) {
+          for (const message of inbox) {
+            if (message.type === "shutdown_request") {
+              this.setStatus(name, "shutdown");
+              return;
+            }
+            messages.push({ role: "user", content: JSON.stringify(message) });
+          }
+          resume = true;
+          break;
+        }
+        const unclaimed = scanUnclaimedTasks();
+        if (unclaimed.length > 0) {
+          const task = unclaimed[0];
+          const result = this.taskManager.claim(task.id, name);
+          if (result.startsWith("Error:")) continue;
+          if (messages.length <= 3) {
+            messages.unshift({ role: "assistant", content: `I am ${name}. Continuing.` } as Message);
+            messages.unshift(makeIdentityBlock(name, role, teamName));
+          }
+          messages.push({ role: "user", content: `<auto-claimed>Task #${task.id}: ${task.subject}\n${task.description ?? ""}</auto-claimed>` });
+          messages.push({ role: "assistant", content: `Claimed task #${task.id}. Working on it.` });
+          resume = true;
+          break;
+        }
+      }
+      if (!resume) {
+        this.setStatus(name, "shutdown");
+        return;
+      }
+      this.setStatus(name, "working");
+    }
+
+    const member = this.findMember(name);
+    if (member && member.status !== "shutdown") {
+      member.status = "idle";
+      this.saveConfig();
+    }
+  }
+
+  listAll() {
+    if (this.config.members.length === 0) return "No teammates.";
+    return [`Team: ${this.config.team_name}`, ...this.config.members.map((member) => `  ${member.name} (${member.role}): ${member.status}`)].join("\n");
+  }
+
+  memberNames() {
+    return this.config.members.map((member) => member.name);
+  }
+}
+
 export class EventBus {
   constructor(private readonly logPath: string) {
     mkdirSync(resolve(logPath, ".."), { recursive: true });
@@ -549,23 +914,55 @@ export class EventBus {
 
   listRecent(limit = 20) {
     const lines = readFileSync(this.logPath, "utf8").split(/\r?\n/).filter(Boolean);
-    return JSON.stringify(lines.slice(-Math.max(1, Math.min(limit, 200))).map((line) => JSON.parse(line)), null, 2);
+    return JSON.stringify(
+      lines.slice(-Math.max(1, Math.min(limit, 200))).map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return { event: "parse_error", raw: line };
+        }
+      }),
+      null,
+      2
+    );
   }
 }
 
 export function detectRepoRoot(start = WORKDIR) {
-  let current = resolve(start);
-  while (true) {
-    if (existsSync(join(current, ".git"))) return current;
-    const parent = resolve(current, "..");
-    if (parent === current) return null;
-    current = parent;
+  try {
+    const output = spawnSyncText("git rev-parse --show-toplevel", start, 10_000);
+    const root = output.trim();
+    return root && existsSync(root) ? root : null;
+  } catch {
+    let current = resolve(start);
+    while (true) {
+      if (existsSync(join(current, ".git"))) return current;
+      const parent = resolve(current, "..");
+      if (parent === current) return null;
+      current = parent;
+    }
   }
+}
+
+function spawnSyncText(command: string, commandCwd = WORKDIR, timeoutMs = 120_000) {
+  const result = spawnSync(command, {
+    cwd: commandCwd,
+    shell: true,
+    encoding: "utf8",
+    timeout: timeoutMs
+  });
+  if (result.status !== 0) throw new Error((result.stdout + result.stderr).trim());
+  return (result.stdout + result.stderr).trim();
+}
+
+function shellQuote(value: string) {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 export class WorktreeManager {
   dir: string;
   indexPath: string;
+  gitAvailable: boolean;
 
   constructor(
     private readonly repoRoot: string,
@@ -577,6 +974,16 @@ export class WorktreeManager {
     this.indexPath = join(this.dir, "index.json");
     if (!existsSync(this.indexPath)) {
       writeFileSync(this.indexPath, `${JSON.stringify({ worktrees: [] }, null, 2)}\n`, "utf8");
+    }
+    this.gitAvailable = this.isGitRepo();
+  }
+
+  private isGitRepo() {
+    try {
+      spawnSyncText("git rev-parse --is-inside-work-tree", this.repoRoot, 10_000);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -600,12 +1007,16 @@ export class WorktreeManager {
 
   async create(name: string, taskId?: number, baseRef = "HEAD") {
     this.validateName(name);
+    if (!this.gitAvailable) throw new Error("Not in a git repository. worktree tools require git.");
     if (this.find(name)) throw new Error(`Worktree '${name}' already exists in index`);
     if (taskId != null && !this.tasks.exists(taskId)) throw new Error(`Task ${taskId} not found`);
     const path = join(this.dir, name);
     const branch = `wt/${name}`;
     this.events.emit("worktree.create.before", taskId != null ? { id: taskId } : {}, { name, baseRef });
-    const output = await runCommand(`git worktree add -b ${branch} ${path} ${baseRef}`, this.repoRoot);
+    const output = await runCommand(
+      `git worktree add -b ${shellQuote(branch)} ${shellQuote(path)} ${shellQuote(baseRef)}`,
+      this.repoRoot
+    );
     if (output.startsWith("Error:")) {
       this.events.emit("worktree.create.failed", taskId != null ? { id: taskId } : {}, { name, baseRef }, output);
       throw new Error(output);
@@ -640,12 +1051,15 @@ export class WorktreeManager {
   async status(name: string) {
     const worktree = this.find(name);
     if (!worktree) return `Error: Unknown worktree '${name}'`;
-    return runCommand("git status --short --branch", worktree.path, 60_000);
+    if (!existsSync(worktree.path)) return `Error: Worktree path missing: ${worktree.path}`;
+    const output = await runCommand("git status --short --branch", worktree.path, 60_000);
+    return output === "(no output)" ? "Clean worktree" : output;
   }
 
   async run(name: string, command: string) {
     const worktree = this.find(name);
     if (!worktree) return `Error: Unknown worktree '${name}'`;
+    if (!existsSync(worktree.path)) return `Error: Worktree path missing: ${worktree.path}`;
     return runCommand(command, worktree.path, 300_000);
   }
 
@@ -658,7 +1072,7 @@ export class WorktreeManager {
       { name, path: worktree.path }
     );
     const output = await runCommand(
-      `git worktree remove ${force ? "--force " : ""}${worktree.path}`,
+      `git worktree remove ${force ? "--force " : ""}${shellQuote(worktree.path)}`,
       this.repoRoot
     );
     if (output.startsWith("Error:")) {
@@ -794,14 +1208,20 @@ export async function runAgentLoop(options: {
   backgroundManager?: BackgroundManager;
   messageBus?: MessageBus;
   compressClient?: Anthropic;
+  compact?: boolean;
+  compactPrefix?: string;
+  tokenThreshold?: number;
+  nagTodo?: false | "always" | "open";
 }) {
   const client = options.compressClient ?? createClient();
   let roundsWithoutTodo = 0;
   while (true) {
-    microcompact(options.messages);
-    if (estimateTokens(options.messages) > TOKEN_THRESHOLD) {
-      const compacted = await autoCompact(options.messages, client);
-      options.messages.splice(0, options.messages.length, ...compacted);
+    if (options.compact) {
+      microcompact(options.messages);
+      if (estimateTokens(options.messages) > (options.tokenThreshold ?? TOKEN_THRESHOLD)) {
+        const compacted = await autoCompact(options.messages, client, options.compactPrefix ?? "Conversation compressed");
+        options.messages.splice(0, options.messages.length, ...compacted);
+      }
     }
     if (options.backgroundManager) {
       const notifications = options.backgroundManager.drain();
@@ -835,7 +1255,7 @@ export async function runAgentLoop(options: {
     let manualCompress = false;
     for (const block of response.content) {
       if (block.type !== "tool_use") continue;
-      if (block.name === "compress") manualCompress = true;
+      if (block.name === "compress" || block.name === "compact") manualCompress = true;
       const handler = options.handlers[block.name];
       let content: string;
       try {
@@ -849,12 +1269,15 @@ export async function runAgentLoop(options: {
       }
     }
     roundsWithoutTodo = usedTodo ? 0 : roundsWithoutTodo + 1;
-    if (options.todoManager?.hasOpenItems() && roundsWithoutTodo >= 3) {
+    const shouldNag =
+      options.nagTodo === "always" ||
+      (options.nagTodo === "open" && options.todoManager?.hasOpenItems());
+    if (shouldNag && roundsWithoutTodo >= 3) {
       results.push({ type: "text", text: "<reminder>Update your todos.</reminder>" });
     }
     options.messages.push({ role: "user", content: results });
-    if (manualCompress) {
-      const compacted = await autoCompact(options.messages, client);
+    if (manualCompress && options.compact) {
+      const compacted = await autoCompact(options.messages, client, options.compactPrefix ?? "Conversation compressed");
       options.messages.splice(0, options.messages.length, ...compacted);
       return response;
     }

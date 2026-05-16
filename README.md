@@ -1,11 +1,12 @@
 [English](./README.md) | [中文](./README-zh.md) | [日本語](./README-ja.md)
 # Learn Claude Code -- Harness Engineering for Real Agents
+<a href="https://trendshift.io/repositories/19746" target="_blank"><img src="https://trendshift.io/api/badge/repositories/19746" alt="shareAI-lab%2Flearn-claude-code | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 ## Agency Comes from the Model. An Agent Product = Model + Harness.
 
 Before we talk about code, let's get one thing straight.
 
-**Agency -- the ability to perceive, reason, and act -- comes from model training, not from external code orchestration. But a working agent product needs both the model and the harness. The model is the driver, the harness is the vehicle. This repo teaches you how to build the vehicle.**
+**Agency -- the ability to perceive, reason, and act -- comes from model training, not from external code orchestration.** But a working agent product needs both the model and the harness. The model is the driver, the harness is the vehicle. This repo teaches you how to build the vehicle.
 
 ### Where Agency Comes From
 
@@ -25,7 +26,7 @@ The proof is written in history:
 
 - **2024-2025 -- LLM agents reshape software engineering.** Claude, GPT, Gemini -- large language models trained on the entirety of human code and reasoning -- are deployed as coding agents. They read codebases, write implementations, debug failures, coordinate in teams. The architecture is identical to every agent before them: a trained model, placed in an environment, given tools to perceive and act. The only difference is the scale of what they've learned and the generality of the tasks they solve.
 
-Every one of these milestones points to the same fact: agency -- the ability to perceive, reason, and act -- is trained, not coded. But every agent also needed an environment to operate in: the Atari emulator, the Dota 2 client, the StarCraft II engine, the IDE and terminal. The model provides intelligence. The environment provides the action space. Together they form a complete agent.
+Every one of these milestones points to the same fact: **agency -- the ability to perceive, reason, and act -- is trained, not coded.** But every agent also needed an environment to operate in: the Atari emulator, the Dota 2 client, the StarCraft II engine, the IDE and terminal. The model provides intelligence. The environment provides the action space. Together they form a complete agent.
 
 ### What an Agent Is NOT
 

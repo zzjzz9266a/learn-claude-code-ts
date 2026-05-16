@@ -14,60 +14,67 @@ MCP servers expose:
 - **Resources**: Data Claude can read (like files or database records)
 - **Prompts**: Pre-built prompt templates
 
-## Quick Start: Python MCP Server
+## Quick Start: TypeScript MCP Server
 
 ### 1. Project Setup
 
 ```bash
 # Create project
 mkdir my-mcp-server && cd my-mcp-server
-python3 -m venv venv && source venv/bin/activate
 
 # Install MCP SDK
-pip install mcp
+npm init -y
+npm install @modelcontextprotocol/sdk
+npm install -D typescript tsx @types/node
 ```
 
 ### 2. Basic Server Template
 
-```python
-#!/usr/bin/env python3
-"""my_server.py - A simple MCP server"""
+```typescript
+// src/server.ts - A simple MCP server
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+const server = new Server({ name: "my-server", version: "1.0.0" });
 
-# Create server instance
-server = Server("my-server")
+server.setRequestHandler("tools/list", async () => ({
+  tools: [
+    {
+      name: "hello",
+      description: "Say hello to someone",
+      inputSchema: {
+        type: "object",
+        properties: { name: { type: "string" } },
+        required: ["name"],
+      },
+    },
+    {
+      name: "add_numbers",
+      description: "Add two numbers together",
+      inputSchema: {
+        type: "object",
+        properties: { a: { type: "number" }, b: { type: "number" } },
+        required: ["a", "b"],
+      },
+    },
+  ],
+}));
 
-# Define a tool
-@server.tool()
-async def hello(name: str) -> str:
-    """Say hello to someone.
+server.setRequestHandler("tools/call", async (request) => {
+  const args = request.params.arguments as Record<string, unknown>;
 
-    Args:
-        name: The name to greet
-    """
-    return f"Hello, {name}!"
+  if (request.params.name === "hello") {
+    return { content: [{ type: "text", text: `Hello, ${args.name}!` }] };
+  }
 
-@server.tool()
-async def add_numbers(a: int, b: int) -> str:
-    """Add two numbers together.
+  if (request.params.name === "add_numbers") {
+    return { content: [{ type: "text", text: String(Number(args.a) + Number(args.b)) }] };
+  }
 
-    Args:
-        a: First number
-        b: Second number
-    """
-    return str(a + b)
+  throw new Error(`Unknown tool: ${request.params.name}`);
+});
 
-# Run server
-async def main():
-    async with stdio_server() as (read, write):
-        await server.run(read, write)
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+await server.connect(new StdioServerTransport());
 ```
 
 ### 3. Register with Claude
@@ -77,8 +84,8 @@ Add to `~/.claude/mcp.json`:
 {
   "mcpServers": {
     "my-server": {
-      "command": "python3",
-      "args": ["/path/to/my_server.py"]
+      "command": "node",
+      "args": ["/path/to/dist/server.js"]
     }
   }
 }
@@ -140,67 +147,70 @@ server.connect(transport);
 
 ### External API Integration
 
-```python
-import httpx
-from mcp.server import Server
+```typescript
+server.setRequestHandler("tools/call", async (request) => {
+  if (request.params.name !== "get_weather") throw new Error("Unknown tool");
 
-server = Server("weather-server")
+  const { city } = request.params.arguments as { city: string };
+  const url = new URL("https://api.weatherapi.com/v1/current.json");
+  url.searchParams.set("key", "YOUR_API_KEY");
+  url.searchParams.set("q", city);
 
-@server.tool()
-async def get_weather(city: str) -> str:
-    """Get current weather for a city."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"https://api.weatherapi.com/v1/current.json",
-            params={"key": "YOUR_API_KEY", "q": city}
-        )
-        data = resp.json()
-        return f"{city}: {data['current']['temp_c']}C, {data['current']['condition']['text']}"
+  const response = await fetch(url);
+  const data = await response.json() as {
+    current: { temp_c: number; condition: { text: string } };
+  };
+
+  return {
+    content: [{ type: "text", text: `${city}: ${data.current.temp_c}C, ${data.current.condition.text}` }],
+  };
+});
 ```
 
 ### Database Access
 
-```python
-import sqlite3
-from mcp.server import Server
+```typescript
+import Database from "better-sqlite3";
 
-server = Server("db-server")
+server.setRequestHandler("tools/call", async (request) => {
+  if (request.params.name !== "query_db") throw new Error("Unknown tool");
 
-@server.tool()
-async def query_db(sql: str) -> str:
-    """Execute a read-only SQL query."""
-    if not sql.strip().upper().startswith("SELECT"):
-        return "Error: Only SELECT queries allowed"
+  const { sql } = request.params.arguments as { sql: string };
+  if (!sql.trim().toUpperCase().startsWith("SELECT")) {
+    return { content: [{ type: "text", text: "Error: Only SELECT queries allowed" }] };
+  }
 
-    conn = sqlite3.connect("data.db")
-    cursor = conn.execute(sql)
-    rows = cursor.fetchall()
-    conn.close()
-    return str(rows)
+  const db = new Database("data.db", { readonly: true });
+  const rows = db.prepare(sql).all();
+  db.close();
+  return { content: [{ type: "text", text: JSON.stringify(rows) }] };
+});
 ```
 
 ### Resources (Read-only Data)
 
-```python
-@server.resource("config://settings")
-async def get_settings() -> str:
-    """Application settings."""
-    return open("settings.json").read()
+```typescript
+import { readFile } from "node:fs/promises";
 
-@server.resource("file://{path}")
-async def read_file(path: str) -> str:
-    """Read a file from the workspace."""
-    return open(path).read()
+server.setRequestHandler("resources/read", async (request) => {
+  if (request.params.uri === "config://settings") {
+    return {
+      contents: [{ uri: request.params.uri, mimeType: "application/json", text: await readFile("settings.json", "utf8") }],
+    };
+  }
+
+  throw new Error(`Unknown resource: ${request.params.uri}`);
+});
 ```
 
 ## Testing
 
 ```bash
 # Test with MCP Inspector
-npx @anthropics/mcp-inspector python3 my_server.py
+npx @modelcontextprotocol/inspector node dist/server.js
 
 # Or send test messages directly
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python3 my_server.py
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/server.js
 ```
 
 ## Best Practices

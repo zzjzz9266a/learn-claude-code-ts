@@ -376,6 +376,6 @@ MIT
 
 ---
 
-**Agency はモデルから生まれる。Harness が agency を現実にする。優れた Harness を作れ。モデルが残りをやる。**
+**Agency はモデルから生まれる。Harness が Agency を現実にする。優れた Harness を作れ。モデルが残りをやる。**
 
 **Bash is all you need. Real agents are all the universe needs.**

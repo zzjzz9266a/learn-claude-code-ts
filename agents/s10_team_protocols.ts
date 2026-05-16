@@ -1,6 +1,7 @@
 import {
   MessageBus,
-  TEAM_DIR,
+  ProtocolState,
+  TeammateManager,
   VALID_MSG_TYPES,
   createSystemPrompt,
   editWorkspaceFile,
@@ -12,32 +13,27 @@ import {
   type Message,
   writeWorkspaceFile
 } from "../src/core";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 
 const bus = new MessageBus();
-const requestsDir = join(TEAM_DIR, "requests");
-mkdirSync(requestsDir, { recursive: true });
-const system = createSystemPrompt(`Use shared request-response protocols. Valid message types: ${[...VALID_MSG_TYPES].join(", ")}.`);
+const protocols = new ProtocolState();
+const team = new TeammateManager(undefined, bus, "protocols", protocols);
+const system = createSystemPrompt("Manage teammates with shutdown and plan approval protocols.");
 const tools = [
+  ...[
   { name: "bash", description: "Run a shell command.", input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } },
   { name: "read_file", description: "Read file contents.", input_schema: { type: "object", properties: { path: { type: "string" }, limit: { type: "integer" } }, required: ["path"] } },
   { name: "write_file", description: "Write content to file.", input_schema: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } }, required: ["path", "content"] } },
-  { name: "edit_file", description: "Replace exact text in file.", input_schema: { type: "object", properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" } }, required: ["path", "old_text", "new_text"] } },
-  { name: "send_message", description: "Send a typed message.", input_schema: { type: "object", properties: { to: { type: "string" }, content: { type: "string" }, type: { type: "string" } }, required: ["to", "content"] } },
-  { name: "plan_approval_request", description: "Ask a teammate for plan approval.", input_schema: { type: "object", properties: { teammate: { type: "string" }, plan: { type: "string" } }, required: ["teammate", "plan"] } },
-  { name: "shutdown_request", description: "Request teammate shutdown.", input_schema: { type: "object", properties: { teammate: { type: "string" }, reason: { type: "string" } }, required: ["teammate"] } },
-  { name: "read_inbox", description: "Read the lead inbox.", input_schema: { type: "object", properties: {} } }
+  { name: "edit_file", description: "Replace exact text in file.", input_schema: { type: "object", properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" } }, required: ["path", "old_text", "new_text"] } }
+],
+  { name: "spawn_teammate", description: "Spawn a persistent teammate.", input_schema: { type: "object", properties: { name: { type: "string" }, role: { type: "string" }, prompt: { type: "string" } }, required: ["name", "role", "prompt"] } },
+  { name: "list_teammates", description: "List all teammates.", input_schema: { type: "object", properties: {} } },
+  { name: "send_message", description: "Send a message to a teammate.", input_schema: { type: "object", properties: { to: { type: "string" }, content: { type: "string" }, msg_type: { type: "string", enum: [...VALID_MSG_TYPES] } }, required: ["to", "content"] } },
+  { name: "read_inbox", description: "Read and drain the lead's inbox.", input_schema: { type: "object", properties: {} } },
+  { name: "broadcast", description: "Send a message to all teammates.", input_schema: { type: "object", properties: { content: { type: "string" } }, required: ["content"] } },
+  { name: "shutdown_request", description: "Request a teammate to shut down gracefully. Returns a request_id for tracking.", input_schema: { type: "object", properties: { teammate: { type: "string" } }, required: ["teammate"] } },
+  { name: "shutdown_response", description: "Check the status of a shutdown request by request_id.", input_schema: { type: "object", properties: { request_id: { type: "string" } }, required: ["request_id"] } },
+  { name: "plan_approval", description: "Approve or reject a teammate's plan. Provide request_id + approve + optional feedback.", input_schema: { type: "object", properties: { request_id: { type: "string" }, approve: { type: "boolean" }, feedback: { type: "string" } }, required: ["request_id", "approve"] } }
 ];
-
-function request(to: string, type: string, content: string) {
-  const requestId = `req_${randomUUID().slice(0, 8)}`;
-  const payload = { request_id: requestId, to, type, content, status: "pending" };
-  writeFileSync(join(requestsDir, `${requestId}.json`), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-  bus.send("lead", to, content, type, { request_id: requestId });
-  return JSON.stringify(payload, null, 2);
-}
 
 export async function runS10(history: Message[]) {
   await runAgentLoop({
@@ -48,10 +44,14 @@ export async function runS10(history: Message[]) {
       read_file: ({ path, limit }) => readWorkspaceFile(path, limit),
       write_file: ({ path, content }) => writeWorkspaceFile(path, content),
       edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),
-      send_message: ({ to, content, type }) => bus.send("lead", to, content, type),
-      plan_approval_request: ({ teammate, plan }) => request(teammate, "plan_approval_request", plan),
-      shutdown_request: ({ teammate, reason }) => request(teammate, "shutdown_request", reason ?? "shutdown requested"),
-      read_inbox: () => JSON.stringify(bus.readInbox("lead"), null, 2)
+      spawn_teammate: ({ name, role, prompt }) => team.spawn(name, role, prompt),
+      list_teammates: () => team.listAll(),
+      send_message: ({ to, content, msg_type }) => bus.send("lead", to, content, msg_type ?? "message"),
+      read_inbox: () => JSON.stringify(bus.readInbox("lead"), null, 2),
+      broadcast: ({ content }) => bus.broadcast("lead", content, team.memberNames()),
+      shutdown_request: ({ teammate }) => protocols.requestShutdown(bus, teammate),
+      shutdown_response: ({ request_id }) => protocols.checkShutdown(request_id ?? ""),
+      plan_approval: ({ request_id, approve, feedback }) => protocols.reviewPlan(bus, request_id, approve, feedback ?? "")
     },
     messages: history,
     messageBus: bus

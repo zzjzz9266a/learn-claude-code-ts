@@ -17,14 +17,14 @@ Check for:
 - [ ] **Authorization flaws**: Missing access controls, IDOR
 - [ ] **Data exposure**: Sensitive data in logs, error messages
 - [ ] **Cryptography**: Weak algorithms, improper key management
-- [ ] **Dependencies**: Known vulnerabilities (check with `npm audit`, `pip-audit`)
+- [ ] **Dependencies**: Known vulnerabilities (check with `npm audit` or the package manager's audit command)
 
 ```bash
 # Quick security scans
 npm audit                    # Node.js
-pip-audit                    # Python
+pnpm audit                   # pnpm workspaces
 cargo audit                  # Rust
-grep -r "password\|secret\|api_key" --include="*.py" --include="*.js"
+grep -r "password\|secret\|api_key" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx"
 ```
 
 ### 2. Correctness
@@ -89,27 +89,18 @@ Check for:
 
 ## Common Patterns to Flag
 
-### Python
-```python
-# Bad: SQL injection
-cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
-# Good:
-cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-
-# Bad: Command injection
-os.system(f"ls {user_input}")
-# Good:
-subprocess.run(["ls", user_input], check=True)
-
-# Bad: Mutable default argument
-def append(item, lst=[]):  # Bug: shared mutable default
-# Good:
-def append(item, lst=None):
-    lst = lst or []
-```
-
 ### JavaScript/TypeScript
-```javascript
+```typescript
+// Bad: SQL injection
+await db.query(`SELECT * FROM users WHERE id = ${userId}`);
+// Good:
+await db.query("SELECT * FROM users WHERE id = ?", [userId]);
+
+// Bad: Command injection
+exec(`ls ${userInput}`);
+// Good:
+execFile("ls", [userInput]);
+
 // Bad: Prototype pollution
 Object.assign(target, userInput)
 // Good:
@@ -136,14 +127,14 @@ git log --oneline -10
 
 # Find potential issues
 grep -rn "TODO\|FIXME\|HACK\|XXX" .
-grep -rn "password\|secret\|token" . --include="*.py"
+grep -rn "password\|secret\|token" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx"
 
-# Check complexity (Python)
-pip install radon && radon cc . -a
+# Check lint and complexity
+npm run lint
+npx eslint . --max-warnings=0
 
 # Check dependencies
 npm outdated  # Node
-pip list --outdated  # Python
 ```
 
 ## Review Workflow

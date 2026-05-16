@@ -18,6 +18,16 @@ const expectedSessions = [
   "s_full.ts",
 ];
 
+const expectedToolSets: Record<string, string[]> = {
+  "s06_context_compact.ts": ["bash", "read_file", "write_file", "edit_file", "compact"],
+  "s08_background_tasks.ts": ["bash", "read_file", "write_file", "edit_file", "background_run", "check_background"],
+  "s09_agent_teams.ts": ["bash", "read_file", "write_file", "edit_file", "spawn_teammate", "list_teammates", "send_message", "read_inbox", "broadcast"],
+  "s10_team_protocols.ts": ["bash", "read_file", "write_file", "edit_file", "spawn_teammate", "list_teammates", "send_message", "read_inbox", "broadcast", "shutdown_request", "shutdown_response", "plan_approval"],
+  "s11_autonomous_agents.ts": ["bash", "read_file", "write_file", "edit_file", "spawn_teammate", "list_teammates", "send_message", "read_inbox", "broadcast", "shutdown_request", "shutdown_response", "plan_approval", "idle", "claim_task"],
+  "s12_worktree_task_isolation.ts": ["bash", "read_file", "write_file", "edit_file", "task_create", "task_list", "task_get", "task_update", "task_bind_worktree", "worktree_create", "worktree_list", "worktree_status", "worktree_run", "worktree_remove", "worktree_keep", "worktree_events"],
+  "s_full.ts": ["bash", "read_file", "write_file", "edit_file", "TodoWrite", "task", "load_skill", "compress", "background_run", "check_background", "task_create", "task_get", "task_update", "task_list", "spawn_teammate", "list_teammates", "send_message", "read_inbox", "broadcast", "shutdown_request", "plan_approval", "idle", "claim_task"],
+};
+
 function walkFiles(dir: string): string[] {
   if (!existsSync(dir)) return [];
 
@@ -27,6 +37,14 @@ function walkFiles(dir: string): string[] {
     if (statSync(fullPath).isDirectory()) return walkFiles(fullPath);
     return [fullPath];
   });
+}
+
+function extractToolNames(source: string): string[] {
+  const tools = new Set<string>();
+  for (const match of source.matchAll(/(?:["']name["']|name)\s*:\s*"(\w+)"/g)) {
+    tools.add(match[1]);
+  }
+  return [...tools];
 }
 
 describe("mirror sync invariants", () => {
@@ -46,10 +64,24 @@ describe("mirror sync invariants", () => {
     expect(pythonFiles).toEqual([]);
   });
 
-  test("docs and generated web data do not expose Python code or filenames", () => {
-    const checkedFiles = walkFiles("docs")
-      .concat(walkFiles("web/src/data/generated"))
-      .filter((file) => file.endsWith(".md") || file.endsWith(".json"));
+  test("translated chapter tool sets match upstream semantics", () => {
+    for (const [filename, expectedTools] of Object.entries(expectedToolSets)) {
+      const source = readFileSync(join("agents", filename), "utf8");
+      expect(extractToolNames(source), filename).toEqual(expectedTools);
+    }
+  });
+
+  test("public mirror content does not expose Python code or filenames", () => {
+    const checkedFiles = [
+      "README.md",
+      "README-zh.md",
+      "README-ja.md",
+      ...walkFiles("docs"),
+      ...walkFiles("skills"),
+      ...walkFiles("web/src/data/annotations"),
+      ...walkFiles("web/src/data/scenarios"),
+      ...walkFiles("web/src/data/generated")
+    ].filter((file) => file.endsWith(".md") || file.endsWith(".json"));
 
     const leaks = checkedFiles.flatMap((file) => {
       const content = readFileSync(file, "utf8");

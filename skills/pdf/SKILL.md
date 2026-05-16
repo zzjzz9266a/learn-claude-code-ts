@@ -16,26 +16,18 @@ pdftotext input.pdf -  # Output to stdout
 pdftotext input.pdf output.txt  # Output to file
 
 # If pdftotext not available, try:
-python3 -c "
-import fitz  # PyMuPDF
-doc = fitz.open('input.pdf')
-for page in doc:
-    print(page.get_text())
-"
+npx tsx -e "import { readFile } from 'node:fs/promises'; import pdf from 'pdf-parse'; const data = await pdf(await readFile('input.pdf')); console.log(data.text);"
 ```
 
 **Option 2: Page-by-page with metadata**
-```python
-import fitz  # pip install pymupdf
+```typescript
+import { readFile } from "node:fs/promises";
+import pdf from "pdf-parse";
 
-doc = fitz.open("input.pdf")
-print(f"Pages: {len(doc)}")
-print(f"Metadata: {doc.metadata}")
-
-for i, page in enumerate(doc):
-    text = page.get_text()
-    print(f"--- Page {i+1} ---")
-    print(text)
+const data = await pdf(await readFile("input.pdf"));
+console.log(`Pages: ${data.numpages}`);
+console.log(`Metadata: ${JSON.stringify(data.info)}`);
+console.log(data.text);
 ```
 
 ## Creating PDFs
@@ -50,13 +42,15 @@ pandoc input.md -o output.pdf --pdf-engine=xelatex -V geometry:margin=1in
 ```
 
 **Option 2: Programmatically**
-```python
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+```typescript
+import { writeFile } from "node:fs/promises";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 
-c = canvas.Canvas("output.pdf", pagesize=letter)
-c.drawString(100, 750, "Hello, PDF!")
-c.save()
+const doc = await PDFDocument.create();
+const page = doc.addPage([612, 792]);
+const font = await doc.embedFont(StandardFonts.Helvetica);
+page.drawText("Hello, PDF!", { x: 100, y: 750, size: 12, font });
+await writeFile("output.pdf", await doc.save());
 ```
 
 **Option 3: From HTML**
@@ -64,44 +58,47 @@ c.save()
 # Using wkhtmltopdf
 wkhtmltopdf input.html output.pdf
 
-# Or with Python
-python3 -c "
-import pdfkit
-pdfkit.from_file('input.html', 'output.pdf')
-"
+# Or with Playwright
+npx playwright pdf input.html output.pdf
 ```
 
 ## Merging PDFs
 
-```python
-import fitz
+```typescript
+import { readFile, writeFile } from "node:fs/promises";
+import { PDFDocument } from "pdf-lib";
 
-result = fitz.open()
-for pdf_path in ["file1.pdf", "file2.pdf", "file3.pdf"]:
-    doc = fitz.open(pdf_path)
-    result.insert_pdf(doc)
-result.save("merged.pdf")
+const merged = await PDFDocument.create();
+for (const path of ["file1.pdf", "file2.pdf", "file3.pdf"]) {
+  const source = await PDFDocument.load(await readFile(path));
+  const pages = await merged.copyPages(source, source.getPageIndices());
+  pages.forEach((page) => merged.addPage(page));
+}
+await writeFile("merged.pdf", await merged.save());
 ```
 
 ## Splitting PDFs
 
-```python
-import fitz
+```typescript
+import { readFile, writeFile } from "node:fs/promises";
+import { PDFDocument } from "pdf-lib";
 
-doc = fitz.open("input.pdf")
-for i in range(len(doc)):
-    single = fitz.open()
-    single.insert_pdf(doc, from_page=i, to_page=i)
-    single.save(f"page_{i+1}.pdf")
+const source = await PDFDocument.load(await readFile("input.pdf"));
+for (const index of source.getPageIndices()) {
+  const single = await PDFDocument.create();
+  const [page] = await single.copyPages(source, [index]);
+  single.addPage(page);
+  await writeFile(`page_${index + 1}.pdf`, await single.save());
+}
 ```
 
 ## Key Libraries
 
 | Task | Library | Install |
 |------|---------|---------|
-| Read/Write/Merge | PyMuPDF | `pip install pymupdf` |
-| Create from scratch | ReportLab | `pip install reportlab` |
-| HTML to PDF | pdfkit | `pip install pdfkit` + wkhtmltopdf |
+| Read text | pdf-parse | `npm install pdf-parse` |
+| Read/Write/Merge | pdf-lib | `npm install pdf-lib` |
+| HTML to PDF | Playwright or wkhtmltopdf | `npm install playwright` / `brew install wkhtmltopdf` |
 | Text extraction | pdftotext | `brew install poppler` / `apt install poppler-utils` |
 
 ## Best Practices
@@ -109,4 +106,4 @@ for i in range(len(doc)):
 1. **Always check if tools are installed** before using them
 2. **Handle encoding issues** - PDFs may contain various character encodings
 3. **Large PDFs**: Process page by page to avoid memory issues
-4. **OCR for scanned PDFs**: Use `pytesseract` if text extraction returns empty
+4. **OCR for scanned PDFs**: Use `ocrmypdf` or `tesseract` if text extraction returns empty

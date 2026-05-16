@@ -56,7 +56,7 @@ type ToolSpec = {
 };
 
 const tool: ToolSpec = {
-  name: "compress",
+  name: "compact",
   description: "context compaction",
   input_schema: { type: "object", properties: {} }
 };
@@ -79,7 +79,7 @@ type ToolSpec = {
 };
 
 const tool: ToolSpec = {
-  name: "compress",
+  name: "compact",
   description: "context compaction",
   input_schema: { type: "object", properties: {} }
 };
@@ -104,7 +104,7 @@ type ToolSpec = {
 };
 
 const tool: ToolSpec = {
-  name: "compress",
+  name: "compact",
   description: "context compaction",
   input_schema: { type: "object", properties: {} }
 };

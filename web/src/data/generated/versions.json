@@ -60,7 +60,7 @@
       "filename": "s03_todo_write.ts",
       "title": "TodoWrite",
       "subtitle": "Plan Before You Act",
-      "loc": 71,
+      "loc": 53,
       "tools": [
         "bash",
         "read_file",
@@ -78,18 +78,18 @@
         {
           "name": "runS03",
           "signature": "function runS03(history: Message[])",
-          "startLine": 51
+          "startLine": 38
         }
       ],
       "layer": "planning",
-      "source": "import {\n  TodoManager,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\n\nconst todo = new TodoManager();\nconst system = createSystemPrompt(\n  \"Use the todo tool to plan multi-step tasks. Mark in_progress before starting, completed when done. Prefer tools over prose.\"\n);\n\nconst tools = [\n  {\n    name: \"bash\",\n    description: \"Run a shell command.\",\n    input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] }\n  },\n  {\n    name: \"read_file\",\n    description: \"Read file contents.\",\n    input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] }\n  },\n  {\n    name: \"write_file\",\n    description: \"Write content to file.\",\n    input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] }\n  },\n  {\n    name: \"edit_file\",\n    description: \"Replace exact text in file.\",\n    input_schema: {\n      type: \"object\",\n      properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } },\n      required: [\"path\", \"old_text\", \"new_text\"]\n    }\n  },\n  {\n    name: \"todo\",\n    description: \"Update task list. Track progress on multi-step tasks.\",\n    input_schema: { type: \"object\", properties: { items: { type: \"array\" } }, required: [\"items\"] }\n  }\n];\n\nexport async function runS03(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      todo: ({ items }) => todo.update(\n        items.map((item: any, index: number) => ({\n          content: item.text ?? item.content ?? `task-${index + 1}`,\n          status: item.status,\n          activeForm: item.text ?? item.content ?? `task-${index + 1}`\n        }))\n      )\n    },\n    messages: history,\n    todoManager: todo\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s03\", runTurn: runS03 });\n}\n"
+      "source": "import { SessionTodoManager, createSystemPrompt, editWorkspaceFile, isMainModule, readWorkspaceFile, runAgentLoop, runCommand, startRepl, type Message, writeWorkspaceFile } from \"../src/core\";\n\nconst todo = new SessionTodoManager();\nconst system = createSystemPrompt(\n  \"Use the todo tool to plan multi-step tasks. Mark in_progress before starting, completed when done. Prefer tools over prose.\"\n);\nconst tools = [\n  ...[\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } }\n],\n  {\n    name: \"todo\",\n    description: \"Update task list. Track progress on multi-step tasks.\",\n    input_schema: {\n      type: \"object\",\n      properties: {\n        items: {\n          type: \"array\",\n          items: {\n            type: \"object\",\n            properties: {\n              id: { type: \"string\" },\n              text: { type: \"string\" },\n              status: { type: \"string\", enum: [\"pending\", \"in_progress\", \"completed\"] }\n            },\n            required: [\"id\", \"text\", \"status\"]\n          }\n        }\n      },\n      required: [\"items\"]\n    }\n  }\n];\n\nexport async function runS03(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      todo: ({ items }) => todo.update(items)\n    },\n    messages: history,\n    nagTodo: \"always\"\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s03\", runTurn: runS03 });\n}\n"
     },
     {
       "id": "s04",
       "filename": "s04_subagent.ts",
       "title": "Subagents",
       "subtitle": "Clean Context Per Subtask",
-      "loc": 67,
+      "loc": 39,
       "tools": [
         "bash",
         "read_file",
@@ -107,11 +107,11 @@
         {
           "name": "runS04",
           "signature": "function runS04(history: Message[])",
-          "startLine": 54
+          "startLine": 25
         }
       ],
       "layer": "planning",
-      "source": "import {\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  runSubagent,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\n\nconst system = createSystemPrompt(\n  \"Use tools to solve tasks. Delegate larger investigations with the task tool to keep the parent context clean.\"\n);\n\nconst tools = [\n  {\n    name: \"bash\",\n    description: \"Run a shell command.\",\n    input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] }\n  },\n  {\n    name: \"read_file\",\n    description: \"Read file contents.\",\n    input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] }\n  },\n  {\n    name: \"write_file\",\n    description: \"Write content to file.\",\n    input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] }\n  },\n  {\n    name: \"edit_file\",\n    description: \"Replace exact text in file.\",\n    input_schema: {\n      type: \"object\",\n      properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } },\n      required: [\"path\", \"old_text\", \"new_text\"]\n    }\n  },\n  {\n    name: \"task\",\n    description: \"Spawn a subagent for isolated exploration or work.\",\n    input_schema: {\n      type: \"object\",\n      properties: { prompt: { type: \"string\" }, agent_type: { type: \"string\" } },\n      required: [\"prompt\"]\n    }\n  }\n];\n\nexport async function runS04(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      task: ({ prompt, agent_type }) => runSubagent(prompt, agent_type)\n    },\n    messages: history\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s04\", runTurn: runS04 });\n}\n"
+      "source": "import { runSubagent, createSystemPrompt, editWorkspaceFile, isMainModule, readWorkspaceFile, runAgentLoop, runCommand, startRepl, type Message, writeWorkspaceFile } from \"../src/core\";\n\nconst system = createSystemPrompt(\"Use the task tool to delegate exploration or subtasks.\");\nconst tools = [\n  ...[\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } }\n],\n  {\n    name: \"task\",\n    description: \"Spawn a subagent with fresh context. It shares the filesystem but not conversation history.\",\n    input_schema: {\n      type: \"object\",\n      properties: {\n        prompt: { type: \"string\" },\n        description: { type: \"string\", description: \"Short description of the task\" }\n      },\n      required: [\"prompt\"]\n    }\n  }\n];\n\nexport async function runS04(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      task: ({ prompt }) => runSubagent(prompt, \"general-purpose\")\n    },\n    messages: history\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s04\", runTurn: runS04 });\n}\n"
     },
     {
       "id": "s05",
@@ -147,19 +147,16 @@
       "filename": "s06_context_compact.ts",
       "title": "Compact",
       "subtitle": "Three-Layer Compression",
-      "loc": 92,
+      "loc": 48,
       "tools": [
         "bash",
         "read_file",
         "write_file",
         "edit_file",
-        "TodoWrite",
-        "load_skill",
-        "compress"
+        "compact"
       ],
       "newTools": [
-        "TodoWrite",
-        "compress"
+        "compact"
       ],
       "coreAddition": "micro-compact + auto-compact + archival",
       "keyInsight": "Context will fill up; three-layer compression strategy enables infinite sessions",
@@ -168,11 +165,11 @@
         {
           "name": "runS06",
           "signature": "function runS06(history: Message[])",
-          "startLine": 69
+          "startLine": 30
         }
       ],
       "layer": "memory",
-      "source": "import {\n  SkillLoader,\n  SKILLS_DIR,\n  TodoManager,\n  autoCompact,\n  createClient,\n  createSystemPrompt,\n  editWorkspaceFile,\n  estimateTokens,\n  isMainModule,\n  microcompact,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  TOKEN_THRESHOLD,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\n\nconst skills = new SkillLoader(SKILLS_DIR);\nconst todo = new TodoManager();\nconst client = createClient();\nconst system = createSystemPrompt(\n  `Use tools to solve tasks. Manage short plans with TodoWrite, load knowledge with load_skill, and compact context when needed.\\nSkills:\\n${skills.descriptions()}`\n);\nconst tools = [\n  {\n    name: \"bash\",\n    description: \"Run a shell command.\",\n    input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] }\n  },\n  {\n    name: \"read_file\",\n    description: \"Read file contents.\",\n    input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] }\n  },\n  {\n    name: \"write_file\",\n    description: \"Write content to file.\",\n    input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] }\n  },\n  {\n    name: \"edit_file\",\n    description: \"Replace exact text in file.\",\n    input_schema: {\n      type: \"object\",\n      properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } },\n      required: [\"path\", \"old_text\", \"new_text\"]\n    }\n  },\n  {\n    name: \"TodoWrite\",\n    description: \"Update task tracking list.\",\n    input_schema: { type: \"object\", properties: { items: { type: \"array\" } }, required: [\"items\"] }\n  },\n  {\n    name: \"load_skill\",\n    description: \"Load specialized knowledge by name.\",\n    input_schema: { type: \"object\", properties: { name: { type: \"string\" } }, required: [\"name\"] }\n  },\n  {\n    name: \"compress\",\n    description: \"Manually compress conversation context.\",\n    input_schema: { type: \"object\", properties: {} }\n  }\n];\n\nexport async function runS06(history: Message[]) {\n  microcompact(history);\n  if (estimateTokens(history) > TOKEN_THRESHOLD) {\n    const compacted = await autoCompact(history, client);\n    history.splice(0, history.length, ...compacted);\n  }\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      load_skill: ({ name }) => skills.load(name),\n      TodoWrite: ({ items }) => todo.update(items),\n      compress: () => \"Compressing...\"\n    },\n    messages: history,\n    todoManager: todo,\n    compressClient: client\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s06\", runTurn: runS06 });\n}\n"
+      "source": "import {\n  createClient,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\n\nconst client = createClient();\nconst system = createSystemPrompt(\"Use tools to solve tasks.\");\nconst tools = [\n  ...[\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } }\n],\n  {\n    name: \"compact\",\n    description: \"Trigger manual conversation compression.\",\n    input_schema: { type: \"object\", properties: { focus: { type: \"string\", description: \"What to preserve in the summary\" } } }\n  }\n];\n\nexport async function runS06(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      compact: () => \"Manual compression requested.\"\n    },\n    messages: history,\n    compressClient: client,\n    compact: true,\n    compactPrefix: \"Conversation compressed\",\n    tokenThreshold: 50_000\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s06\", runTurn: runS06 });\n}\n"
     },
     {
       "id": "s07",
@@ -214,20 +211,18 @@
       "filename": "s08_background_tasks.ts",
       "title": "Background Tasks",
       "subtitle": "Background Threads + Notifications",
-      "loc": 46,
+      "loc": 33,
       "tools": [
         "bash",
         "read_file",
         "write_file",
         "edit_file",
-        "TodoWrite",
         "background_run",
-        "background_check"
+        "check_background"
       ],
       "newTools": [
-        "TodoWrite",
         "background_run",
-        "background_check"
+        "check_background"
       ],
       "coreAddition": "BackgroundManager + notification queue",
       "keyInsight": "Run slow operations in the background; the agent keeps thinking ahead",
@@ -236,163 +231,156 @@
         {
           "name": "runS08",
           "signature": "function runS08(history: Message[])",
-          "startLine": 28
+          "startLine": 17
         }
       ],
       "layer": "concurrency",
-      "source": "import {\n  BackgroundManager,\n  TodoManager,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\n\nconst bg = new BackgroundManager();\nconst todo = new TodoManager();\nconst system = createSystemPrompt(\"Use background tasks for slow operations. Continue planning while they run.\");\nconst tools = [\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } },\n  { name: \"TodoWrite\", description: \"Update task tracking list.\", input_schema: { type: \"object\", properties: { items: { type: \"array\" } }, required: [\"items\"] } },\n  { name: \"background_run\", description: \"Start a command in the background.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" }, timeout: { type: \"integer\" } }, required: [\"command\"] } },\n  { name: \"background_check\", description: \"Check background task status.\", input_schema: { type: \"object\", properties: { task_id: { type: \"string\" } } } }\n];\n\nexport async function runS08(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      TodoWrite: ({ items }) => todo.update(items),\n      background_run: ({ command, timeout }) => bg.run(command, timeout),\n      background_check: ({ task_id }) => bg.check(task_id)\n    },\n    messages: history,\n    todoManager: todo,\n    backgroundManager: bg\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s08\", runTurn: runS08 });\n}\n"
+      "source": "import { BackgroundManager, createSystemPrompt, editWorkspaceFile, isMainModule, readWorkspaceFile, runAgentLoop, runCommand, startRepl, type Message, writeWorkspaceFile } from \"../src/core\";\n\nconst bg = new BackgroundManager();\nconst system = createSystemPrompt(\"Use background_run for long-running commands.\");\nconst tools = [\n  { name: \"bash\", description: \"Run a shell command (blocking).\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  ...[\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } }\n].slice(1),\n  { name: \"background_run\", description: \"Run command in background thread. Returns task_id immediately.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"check_background\", description: \"Check background task status. Omit task_id to list all.\", input_schema: { type: \"object\", properties: { task_id: { type: \"string\" } } } }\n];\n\nexport async function runS08(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      background_run: ({ command }) => bg.run(command),\n      check_background: ({ task_id }) => bg.check(task_id)\n    },\n    messages: history,\n    backgroundManager: bg\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s08\", runTurn: runS08 });\n}\n"
     },
     {
       "id": "s09",
       "filename": "s09_agent_teams.ts",
       "title": "Agent Teams",
       "subtitle": "Teammates + Mailboxes",
-      "loc": 82,
+      "loc": 52,
       "tools": [
         "bash",
         "read_file",
         "write_file",
         "edit_file",
-        "TodoWrite",
         "spawn_teammate",
-        "team_list",
+        "list_teammates",
         "send_message",
-        "read_inbox"
+        "read_inbox",
+        "broadcast"
       ],
       "newTools": [
         "spawn_teammate",
-        "team_list",
+        "list_teammates",
         "send_message",
-        "read_inbox"
+        "read_inbox",
+        "broadcast"
       ],
       "coreAddition": "TeammateManager + file-based mailbox",
       "keyInsight": "When one agent can't finish, delegate to persistent teammates via async mailboxes",
-      "classes": [
-        {
-          "name": "TeammateManager",
-          "startLine": 20,
-          "endLine": 49
-        }
-      ],
+      "classes": [],
       "functions": [
         {
           "name": "runS09",
           "signature": "function runS09(history: Message[])",
-          "startLine": 68
+          "startLine": 33
         }
       ],
       "layer": "collaboration",
-      "source": "import {\n  MessageBus,\n  TEAM_DIR,\n  TodoManager,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\nimport { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\ntype Teammate = { name: string; role: string; status: string };\n\nclass TeammateManager {\n  teammates = new Map<string, Teammate>();\n\n  constructor(private readonly dir: string) {\n    mkdirSync(dir, { recursive: true });\n    for (const file of readdirSync(dir).filter((name) => name.endsWith(\".json\"))) {\n      const teammate = JSON.parse(readFileSync(join(dir, file), \"utf8\")) as Teammate;\n      this.teammates.set(teammate.name, teammate);\n    }\n  }\n\n  spawn(name: string, role: string) {\n    const teammate = { name, role, status: \"idle\" };\n    this.teammates.set(name, teammate);\n    writeFileSync(join(this.dir, `${name}.json`), `${JSON.stringify(teammate, null, 2)}\\n`, \"utf8\");\n    return JSON.stringify(teammate, null, 2);\n  }\n\n  listAll() {\n    if (this.teammates.size === 0) return \"No teammates.\";\n    return [...this.teammates.values()].map((t) => `[${t.status}] ${t.name}: ${t.role}`).join(\"\\n\");\n  }\n\n  remove(name: string) {\n    if (!this.teammates.has(name)) return `Unknown teammate: ${name}`;\n    this.teammates.delete(name);\n    const file = join(this.dir, `${name}.json`);\n    if (existsSync(file)) writeFileSync(file, \"\", \"utf8\");\n    return `Removed teammate ${name}`;\n  }\n}\n\nconst todo = new TodoManager();\nconst team = new TeammateManager(join(TEAM_DIR, \"roster\"));\nconst bus = new MessageBus();\nconst system = createSystemPrompt(\"Coordinate with persistent teammates through async mailboxes.\");\nconst tools = [\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } },\n  { name: \"TodoWrite\", description: \"Update task tracking list.\", input_schema: { type: \"object\", properties: { items: { type: \"array\" } }, required: [\"items\"] } },\n  { name: \"spawn_teammate\", description: \"Create a persistent teammate.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, role: { type: \"string\" } }, required: [\"name\", \"role\"] } },\n  { name: \"team_list\", description: \"List teammates.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"send_message\", description: \"Send a message to a teammate.\", input_schema: { type: \"object\", properties: { to: { type: \"string\" }, content: { type: \"string\" } }, required: [\"to\", \"content\"] } },\n  { name: \"read_inbox\", description: \"Read the lead inbox.\", input_schema: { type: \"object\", properties: {} } }\n];\n\nexport async function runS09(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      TodoWrite: ({ items }) => todo.update(items),\n      spawn_teammate: ({ name, role }) => team.spawn(name, role),\n      team_list: () => team.listAll(),\n      send_message: ({ to, content }) => bus.send(\"lead\", to, content),\n      read_inbox: () => JSON.stringify(bus.readInbox(\"lead\"), null, 2)\n    },\n    messages: history,\n    todoManager: todo,\n    messageBus: bus\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s09\", runTurn: runS09 });\n}\n"
+      "source": "import {\n  MessageBus,\n  TeammateManager,\n  VALID_MSG_TYPES,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\n\nconst bus = new MessageBus();\nconst team = new TeammateManager(undefined, bus, \"basic\");\nconst system = createSystemPrompt(\"Spawn teammates and communicate via inboxes.\");\nconst tools = [\n  ...[\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } }\n],\n  { name: \"spawn_teammate\", description: \"Spawn a persistent teammate that runs in its own thread.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, role: { type: \"string\" }, prompt: { type: \"string\" } }, required: [\"name\", \"role\", \"prompt\"] } },\n  { name: \"list_teammates\", description: \"List all teammates with name, role, status.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"send_message\", description: \"Send a message to a teammate's inbox.\", input_schema: { type: \"object\", properties: { to: { type: \"string\" }, content: { type: \"string\" }, msg_type: { type: \"string\", enum: [...VALID_MSG_TYPES] } }, required: [\"to\", \"content\"] } },\n  { name: \"read_inbox\", description: \"Read and drain the lead's inbox.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"broadcast\", description: \"Send a message to all teammates.\", input_schema: { type: \"object\", properties: { content: { type: \"string\" } }, required: [\"content\"] } }\n];\n\nexport async function runS09(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      spawn_teammate: ({ name, role, prompt }) => team.spawn(name, role, prompt),\n      list_teammates: () => team.listAll(),\n      send_message: ({ to, content, msg_type }) => bus.send(\"lead\", to, content, msg_type ?? \"message\"),\n      read_inbox: () => JSON.stringify(bus.readInbox(\"lead\"), null, 2),\n      broadcast: ({ content }) => bus.broadcast(\"lead\", content, team.memberNames())\n    },\n    messages: history,\n    messageBus: bus\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s09\", runTurn: runS09 });\n}\n"
     },
     {
       "id": "s10",
       "filename": "s10_team_protocols.ts",
       "title": "Team Protocols",
       "subtitle": "Shared Communication Rules",
-      "loc": 59,
+      "loc": 60,
       "tools": [
         "bash",
         "read_file",
         "write_file",
         "edit_file",
+        "spawn_teammate",
+        "list_teammates",
         "send_message",
-        "plan_approval_request",
+        "read_inbox",
+        "broadcast",
         "shutdown_request",
-        "read_inbox"
+        "shutdown_response",
+        "plan_approval"
       ],
       "newTools": [
-        "plan_approval_request",
-        "shutdown_request"
+        "shutdown_request",
+        "shutdown_response",
+        "plan_approval"
       ],
       "coreAddition": "request_id correlation for two protocols",
       "keyInsight": "One request-response pattern drives all team negotiation",
       "classes": [],
       "functions": [
         {
-          "name": "request",
-          "signature": "function request(to: string, type: string, content: string)",
-          "startLine": 34
-        },
-        {
           "name": "runS10",
           "signature": "function runS10(history: Message[])",
-          "startLine": 42
+          "startLine": 38
         }
       ],
       "layer": "collaboration",
-      "source": "import {\n  MessageBus,\n  TEAM_DIR,\n  VALID_MSG_TYPES,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\nimport { mkdirSync, writeFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { randomUUID } from \"node:crypto\";\n\nconst bus = new MessageBus();\nconst requestsDir = join(TEAM_DIR, \"requests\");\nmkdirSync(requestsDir, { recursive: true });\nconst system = createSystemPrompt(`Use shared request-response protocols. Valid message types: ${[...VALID_MSG_TYPES].join(\", \")}.`);\nconst tools = [\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } },\n  { name: \"send_message\", description: \"Send a typed message.\", input_schema: { type: \"object\", properties: { to: { type: \"string\" }, content: { type: \"string\" }, type: { type: \"string\" } }, required: [\"to\", \"content\"] } },\n  { name: \"plan_approval_request\", description: \"Ask a teammate for plan approval.\", input_schema: { type: \"object\", properties: { teammate: { type: \"string\" }, plan: { type: \"string\" } }, required: [\"teammate\", \"plan\"] } },\n  { name: \"shutdown_request\", description: \"Request teammate shutdown.\", input_schema: { type: \"object\", properties: { teammate: { type: \"string\" }, reason: { type: \"string\" } }, required: [\"teammate\"] } },\n  { name: \"read_inbox\", description: \"Read the lead inbox.\", input_schema: { type: \"object\", properties: {} } }\n];\n\nfunction request(to: string, type: string, content: string) {\n  const requestId = `req_${randomUUID().slice(0, 8)}`;\n  const payload = { request_id: requestId, to, type, content, status: \"pending\" };\n  writeFileSync(join(requestsDir, `${requestId}.json`), `${JSON.stringify(payload, null, 2)}\\n`, \"utf8\");\n  bus.send(\"lead\", to, content, type, { request_id: requestId });\n  return JSON.stringify(payload, null, 2);\n}\n\nexport async function runS10(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      send_message: ({ to, content, type }) => bus.send(\"lead\", to, content, type),\n      plan_approval_request: ({ teammate, plan }) => request(teammate, \"plan_approval_request\", plan),\n      shutdown_request: ({ teammate, reason }) => request(teammate, \"shutdown_request\", reason ?? \"shutdown requested\"),\n      read_inbox: () => JSON.stringify(bus.readInbox(\"lead\"), null, 2)\n    },\n    messages: history,\n    messageBus: bus\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s10\", runTurn: runS10 });\n}\n"
+      "source": "import {\n  MessageBus,\n  ProtocolState,\n  TeammateManager,\n  VALID_MSG_TYPES,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\n\nconst bus = new MessageBus();\nconst protocols = new ProtocolState();\nconst team = new TeammateManager(undefined, bus, \"protocols\", protocols);\nconst system = createSystemPrompt(\"Manage teammates with shutdown and plan approval protocols.\");\nconst tools = [\n  ...[\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } }\n],\n  { name: \"spawn_teammate\", description: \"Spawn a persistent teammate.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, role: { type: \"string\" }, prompt: { type: \"string\" } }, required: [\"name\", \"role\", \"prompt\"] } },\n  { name: \"list_teammates\", description: \"List all teammates.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"send_message\", description: \"Send a message to a teammate.\", input_schema: { type: \"object\", properties: { to: { type: \"string\" }, content: { type: \"string\" }, msg_type: { type: \"string\", enum: [...VALID_MSG_TYPES] } }, required: [\"to\", \"content\"] } },\n  { name: \"read_inbox\", description: \"Read and drain the lead's inbox.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"broadcast\", description: \"Send a message to all teammates.\", input_schema: { type: \"object\", properties: { content: { type: \"string\" } }, required: [\"content\"] } },\n  { name: \"shutdown_request\", description: \"Request a teammate to shut down gracefully. Returns a request_id for tracking.\", input_schema: { type: \"object\", properties: { teammate: { type: \"string\" } }, required: [\"teammate\"] } },\n  { name: \"shutdown_response\", description: \"Check the status of a shutdown request by request_id.\", input_schema: { type: \"object\", properties: { request_id: { type: \"string\" } }, required: [\"request_id\"] } },\n  { name: \"plan_approval\", description: \"Approve or reject a teammate's plan. Provide request_id + approve + optional feedback.\", input_schema: { type: \"object\", properties: { request_id: { type: \"string\" }, approve: { type: \"boolean\" }, feedback: { type: \"string\" } }, required: [\"request_id\", \"approve\"] } }\n];\n\nexport async function runS10(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      spawn_teammate: ({ name, role, prompt }) => team.spawn(name, role, prompt),\n      list_teammates: () => team.listAll(),\n      send_message: ({ to, content, msg_type }) => bus.send(\"lead\", to, content, msg_type ?? \"message\"),\n      read_inbox: () => JSON.stringify(bus.readInbox(\"lead\"), null, 2),\n      broadcast: ({ content }) => bus.broadcast(\"lead\", content, team.memberNames()),\n      shutdown_request: ({ teammate }) => protocols.requestShutdown(bus, teammate),\n      shutdown_response: ({ request_id }) => protocols.checkShutdown(request_id ?? \"\"),\n      plan_approval: ({ request_id, approve, feedback }) => protocols.reviewPlan(bus, request_id, approve, feedback ?? \"\")\n    },\n    messages: history,\n    messageBus: bus\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s10\", runTurn: runS10 });\n}\n"
     },
     {
       "id": "s11",
       "filename": "s11_autonomous_agents.ts",
       "title": "Autonomous Agents",
       "subtitle": "Scan Board, Claim Tasks",
-      "loc": 78,
+      "loc": 66,
       "tools": [
         "bash",
         "read_file",
         "write_file",
         "edit_file",
-        "task_list",
-        "task_get",
-        "claimable_tasks",
-        "claim_task",
+        "spawn_teammate",
+        "list_teammates",
+        "send_message",
+        "read_inbox",
+        "broadcast",
+        "shutdown_request",
+        "shutdown_response",
+        "plan_approval",
         "idle",
-        "read_inbox"
+        "claim_task"
       ],
       "newTools": [
-        "task_list",
-        "task_get",
-        "claimable_tasks",
-        "claim_task",
-        "idle"
+        "idle",
+        "claim_task"
       ],
       "coreAddition": "Task board polling + timeout-based self-governance",
       "keyInsight": "Teammates scan the board and claim tasks themselves; no need for the lead to assign each one",
-      "classes": [
-        {
-          "name": "ClaimManager",
-          "startLine": 23,
-          "endLine": 43
-        }
-      ],
+      "classes": [],
       "functions": [
         {
           "name": "runS11",
           "signature": "function runS11(history: Message[])",
-          "startLine": 61
+          "startLine": 42
         }
       ],
       "layer": "collaboration",
-      "source": "import {\n  MessageBus,\n  TEAM_DIR,\n  TaskManager,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\nimport { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\nconst tasks = new TaskManager();\nconst bus = new MessageBus();\nconst claimsDir = join(TEAM_DIR, \"claims\");\nmkdirSync(claimsDir, { recursive: true });\n\nclass ClaimManager {\n  identity = `agent_${process.pid}`;\n\n  claimable() {\n    if (!existsSync(\".tasks\")) return [];\n    return readdirSync(\".tasks\")\n      .filter((name) => /^task_\\d+\\.json$/.test(name))\n      .map((name) => JSON.parse(readFileSync(join(\".tasks\", name), \"utf8\")))\n      .filter((task) => task.status === \"pending\" && !task.owner && (!task.blockedBy || task.blockedBy.length === 0));\n  }\n\n  claim(taskId: number) {\n    const taskPath = join(\".tasks\", `task_${taskId}.json`);\n    if (!existsSync(taskPath)) return `Task ${taskId} not found`;\n    const claimPath = join(claimsDir, `task_${taskId}.json`);\n    if (existsSync(claimPath)) return `Task ${taskId} is already claimed`;\n    const claim = { task_id: taskId, owner: this.identity, claimed_at: Date.now() / 1000 };\n    writeFileSync(claimPath, `${JSON.stringify(claim, null, 2)}\\n`, \"utf8\");\n    tasks.claim(taskId, this.identity);\n    return JSON.stringify(claim, null, 2);\n  }\n}\n\nconst claims = new ClaimManager();\nconst system = createSystemPrompt(\"Scan the task board, claim available work, and resume autonomously.\");\nconst tools = [\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } },\n  { name: \"task_list\", description: \"List tasks.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"task_get\", description: \"Get task details.\", input_schema: { type: \"object\", properties: { task_id: { type: \"integer\" } }, required: [\"task_id\"] } },\n  { name: \"claimable_tasks\", description: \"List unblocked unowned tasks.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"claim_task\", description: \"Claim task by ID.\", input_schema: { type: \"object\", properties: { task_id: { type: \"integer\" } }, required: [\"task_id\"] } },\n  { name: \"idle\", description: \"Enter idle state.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"read_inbox\", description: \"Read inbox.\", input_schema: { type: \"object\", properties: {} } }\n];\n\nexport async function runS11(history: Message[]) {\n  history.push({ role: \"user\", content: `<identity>${claims.identity}</identity>` });\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      task_list: () => tasks.listAll(),\n      task_get: ({ task_id }) => tasks.get(task_id),\n      claimable_tasks: () => JSON.stringify(claims.claimable(), null, 2),\n      claim_task: ({ task_id }) => claims.claim(task_id),\n      idle: () => \"idle\",\n      read_inbox: () => JSON.stringify(bus.readInbox(\"lead\"), null, 2)\n    },\n    messages: history,\n    messageBus: bus\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s11\", runTurn: runS11 });\n}\n"
+      "source": "import {\n  MessageBus,\n  ProtocolState,\n  TaskManager,\n  TeammateManager,\n  VALID_MSG_TYPES,\n  createSystemPrompt,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\n\nconst bus = new MessageBus();\nconst protocols = new ProtocolState();\nconst tasks = new TaskManager();\nconst team = new TeammateManager(undefined, bus, \"autonomous\", protocols, tasks);\nconst system = createSystemPrompt(\"Teammates are autonomous -- they find work themselves.\");\nconst tools = [\n  ...[\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } }\n],\n  { name: \"spawn_teammate\", description: \"Spawn an autonomous teammate.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, role: { type: \"string\" }, prompt: { type: \"string\" } }, required: [\"name\", \"role\", \"prompt\"] } },\n  { name: \"list_teammates\", description: \"List all teammates.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"send_message\", description: \"Send a message to a teammate.\", input_schema: { type: \"object\", properties: { to: { type: \"string\" }, content: { type: \"string\" }, msg_type: { type: \"string\", enum: [...VALID_MSG_TYPES] } }, required: [\"to\", \"content\"] } },\n  { name: \"read_inbox\", description: \"Read and drain the lead's inbox.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"broadcast\", description: \"Send a message to all teammates.\", input_schema: { type: \"object\", properties: { content: { type: \"string\" } }, required: [\"content\"] } },\n  { name: \"shutdown_request\", description: \"Request a teammate to shut down.\", input_schema: { type: \"object\", properties: { teammate: { type: \"string\" } }, required: [\"teammate\"] } },\n  { name: \"shutdown_response\", description: \"Check shutdown request status.\", input_schema: { type: \"object\", properties: { request_id: { type: \"string\" } }, required: [\"request_id\"] } },\n  { name: \"plan_approval\", description: \"Approve or reject a teammate's plan.\", input_schema: { type: \"object\", properties: { request_id: { type: \"string\" }, approve: { type: \"boolean\" }, feedback: { type: \"string\" } }, required: [\"request_id\", \"approve\"] } },\n  { name: \"idle\", description: \"Enter idle state (for lead -- rarely used).\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"claim_task\", description: \"Claim a task from the board by ID.\", input_schema: { type: \"object\", properties: { task_id: { type: \"integer\" } }, required: [\"task_id\"] } }\n];\n\nexport async function runS11(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      spawn_teammate: ({ name, role, prompt }) => team.spawn(name, role, prompt),\n      list_teammates: () => team.listAll(),\n      send_message: ({ to, content, msg_type }) => bus.send(\"lead\", to, content, msg_type ?? \"message\"),\n      read_inbox: () => JSON.stringify(bus.readInbox(\"lead\"), null, 2),\n      broadcast: ({ content }) => bus.broadcast(\"lead\", content, team.memberNames()),\n      shutdown_request: ({ teammate }) => protocols.requestShutdown(bus, teammate),\n      shutdown_response: ({ request_id }) => protocols.checkShutdown(request_id ?? \"\"),\n      plan_approval: ({ request_id, approve, feedback }) => protocols.reviewPlan(bus, request_id, approve, feedback ?? \"\"),\n      idle: () => \"Lead does not idle.\",\n      claim_task: ({ task_id }) => tasks.claim(task_id, \"lead\")\n    },\n    messages: history,\n    messageBus: bus\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s11\", runTurn: runS11 });\n}\n"
     },
     {
       "id": "s12",
       "filename": "s12_worktree_task_isolation.ts",
       "title": "Worktree + Task Isolation",
       "subtitle": "Isolate by Directory",
-      "loc": 70,
+      "loc": 74,
       "tools": [
         "bash",
         "read_file",
         "write_file",
         "edit_file",
         "task_create",
+        "task_list",
         "task_get",
         "task_update",
-        "task_list",
+        "task_bind_worktree",
         "worktree_create",
         "worktree_list",
         "worktree_status",
         "worktree_run",
         "worktree_remove",
         "worktree_keep",
-        "worktree_events",
-        "read_inbox"
+        "worktree_events"
       ],
       "newTools": [
         "task_create",
+        "task_list",
+        "task_get",
         "task_update",
+        "task_bind_worktree",
         "worktree_create",
         "worktree_list",
         "worktree_status",
@@ -408,11 +396,11 @@
         {
           "name": "runS12",
           "signature": "function runS12(history: Message[])",
-          "startLine": 44
+          "startLine": 47
         }
       ],
       "layer": "collaboration",
-      "source": "import {\n  EventBus,\n  MessageBus,\n  TaskManager,\n  WorktreeManager,\n  createSystemPrompt,\n  detectRepoRoot,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\nimport { join } from \"node:path\";\n\nconst repoRoot = detectRepoRoot() ?? process.cwd();\nconst tasks = new TaskManager(join(repoRoot, \".tasks\"));\nconst events = new EventBus(join(repoRoot, \".worktrees\", \"events.jsonl\"));\nconst worktrees = new WorktreeManager(repoRoot, tasks, events);\nconst bus = new MessageBus();\nconst system = createSystemPrompt(\"Use tasks for goals and worktrees for isolated directories. Bind them by task ID.\");\nconst tools = [\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } },\n  { name: \"task_create\", description: \"Create a persistent task.\", input_schema: { type: \"object\", properties: { subject: { type: \"string\" }, description: { type: \"string\" } }, required: [\"subject\"] } },\n  { name: \"task_get\", description: \"Get task details.\", input_schema: { type: \"object\", properties: { task_id: { type: \"integer\" } }, required: [\"task_id\"] } },\n  { name: \"task_update\", description: \"Update task status.\", input_schema: { type: \"object\", properties: { task_id: { type: \"integer\" } }, required: [\"task_id\"] } },\n  { name: \"task_list\", description: \"List tasks.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"worktree_create\", description: \"Create a git worktree lane.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, task_id: { type: \"integer\" }, base_ref: { type: \"string\" } }, required: [\"name\"] } },\n  { name: \"worktree_list\", description: \"List tracked worktrees.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"worktree_status\", description: \"Show git status for a worktree.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" } }, required: [\"name\"] } },\n  { name: \"worktree_run\", description: \"Run command inside a worktree.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, command: { type: \"string\" } }, required: [\"name\", \"command\"] } },\n  { name: \"worktree_remove\", description: \"Remove a worktree lane.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, force: { type: \"boolean\" }, complete_task: { type: \"boolean\" } }, required: [\"name\"] } },\n  { name: \"worktree_keep\", description: \"Mark a worktree as kept.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" } }, required: [\"name\"] } },\n  { name: \"worktree_events\", description: \"Read recent worktree events.\", input_schema: { type: \"object\", properties: { limit: { type: \"integer\" } } } },\n  { name: \"read_inbox\", description: \"Read inbox.\", input_schema: { type: \"object\", properties: {} } }\n];\n\nexport async function runS12(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      task_create: ({ subject, description }) => tasks.create(subject, description),\n      task_get: ({ task_id }) => tasks.get(task_id),\n      task_update: ({ task_id, status, addBlockedBy, removeBlockedBy }) => tasks.update(task_id, status, addBlockedBy, removeBlockedBy),\n      task_list: () => tasks.listAll(),\n      worktree_create: ({ name, task_id, base_ref }) => worktrees.create(name, task_id, base_ref),\n      worktree_list: () => worktrees.listAll(),\n      worktree_status: ({ name }) => worktrees.status(name),\n      worktree_run: ({ name, command }) => worktrees.run(name, command),\n      worktree_remove: ({ name, force, complete_task }) => worktrees.remove(name, force, complete_task),\n      worktree_keep: ({ name }) => worktrees.keep(name),\n      worktree_events: ({ limit }) => events.listRecent(limit),\n      read_inbox: () => JSON.stringify(bus.readInbox(\"lead\"), null, 2)\n    },\n    messages: history,\n    messageBus: bus\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  await startRepl({ sessionId: \"s12\", runTurn: runS12 });\n}\n"
+      "source": "import {\n  EventBus,\n  TaskManager,\n  WorktreeManager,\n  createSystemPrompt,\n  detectRepoRoot,\n  editWorkspaceFile,\n  isMainModule,\n  readWorkspaceFile,\n  runAgentLoop,\n  runCommand,\n  startRepl,\n  type Message,\n  writeWorkspaceFile\n} from \"../src/core\";\nimport { join } from \"node:path\";\n\nconst repoRoot = detectRepoRoot() ?? process.cwd();\nconst tasks = new TaskManager(join(repoRoot, \".tasks\"));\nconst events = new EventBus(join(repoRoot, \".worktrees\", \"events.jsonl\"));\nconst worktrees = new WorktreeManager(repoRoot, tasks, events);\nconst system = createSystemPrompt(\n  \"Use task + worktree tools for multi-task work. For parallel or risky changes: create tasks, allocate worktree lanes, run commands in those lanes, then choose keep/remove for closeout. Use worktree_events when you need lifecycle visibility.\"\n);\nconst tools = [\n  { name: \"bash\", description: \"Run a shell command in the current workspace (blocking).\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  ...[\n  { name: \"bash\", description: \"Run a shell command.\", input_schema: { type: \"object\", properties: { command: { type: \"string\" } }, required: [\"command\"] } },\n  { name: \"read_file\", description: \"Read file contents.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, limit: { type: \"integer\" } }, required: [\"path\"] } },\n  { name: \"write_file\", description: \"Write content to file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, content: { type: \"string\" } }, required: [\"path\", \"content\"] } },\n  { name: \"edit_file\", description: \"Replace exact text in file.\", input_schema: { type: \"object\", properties: { path: { type: \"string\" }, old_text: { type: \"string\" }, new_text: { type: \"string\" } }, required: [\"path\", \"old_text\", \"new_text\"] } }\n].slice(1),\n  { name: \"task_create\", description: \"Create a new task on the shared task board.\", input_schema: { type: \"object\", properties: { subject: { type: \"string\" }, description: { type: \"string\" } }, required: [\"subject\"] } },\n  { name: \"task_list\", description: \"List all tasks with status, owner, and worktree binding.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"task_get\", description: \"Get task details by ID.\", input_schema: { type: \"object\", properties: { task_id: { type: \"integer\" } }, required: [\"task_id\"] } },\n  { name: \"task_update\", description: \"Update task status or owner.\", input_schema: { type: \"object\", properties: { task_id: { type: \"integer\" }, status: { type: \"string\", enum: [\"pending\", \"in_progress\", \"completed\"] }, owner: { type: \"string\" } }, required: [\"task_id\"] } },\n  { name: \"task_bind_worktree\", description: \"Bind a task to a worktree name.\", input_schema: { type: \"object\", properties: { task_id: { type: \"integer\" }, worktree: { type: \"string\" }, owner: { type: \"string\" } }, required: [\"task_id\", \"worktree\"] } },\n  { name: \"worktree_create\", description: \"Create a git worktree and optionally bind it to a task.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, task_id: { type: \"integer\" }, base_ref: { type: \"string\" } }, required: [\"name\"] } },\n  { name: \"worktree_list\", description: \"List worktrees tracked in .worktrees/index.json.\", input_schema: { type: \"object\", properties: {} } },\n  { name: \"worktree_status\", description: \"Show git status for one worktree.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" } }, required: [\"name\"] } },\n  { name: \"worktree_run\", description: \"Run a shell command in a named worktree directory.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, command: { type: \"string\" } }, required: [\"name\", \"command\"] } },\n  { name: \"worktree_remove\", description: \"Remove a worktree and optionally mark its bound task completed.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" }, force: { type: \"boolean\" }, complete_task: { type: \"boolean\" } }, required: [\"name\"] } },\n  { name: \"worktree_keep\", description: \"Mark a worktree as kept in lifecycle state without removing it.\", input_schema: { type: \"object\", properties: { name: { type: \"string\" } }, required: [\"name\"] } },\n  { name: \"worktree_events\", description: \"List recent worktree/task lifecycle events from .worktrees/events.jsonl.\", input_schema: { type: \"object\", properties: { limit: { type: \"integer\" } } } }\n];\n\nexport async function runS12(history: Message[]) {\n  await runAgentLoop({\n    system,\n    tools,\n    handlers: {\n      bash: ({ command }) => runCommand(command),\n      read_file: ({ path, limit }) => readWorkspaceFile(path, limit),\n      write_file: ({ path, content }) => writeWorkspaceFile(path, content),\n      edit_file: ({ path, old_text, new_text }) => editWorkspaceFile(path, old_text, new_text),\n      task_create: ({ subject, description }) => tasks.create(subject, description),\n      task_list: () => tasks.listAll(),\n      task_get: ({ task_id }) => tasks.get(task_id),\n      task_update: ({ task_id, status, owner }) => tasks.update(task_id, status, undefined, undefined, owner),\n      task_bind_worktree: ({ task_id, worktree, owner }) => tasks.bindWorktree(task_id, worktree, owner ?? \"\"),\n      worktree_create: ({ name, task_id, base_ref }) => worktrees.create(name, task_id, base_ref),\n      worktree_list: () => worktrees.listAll(),\n      worktree_status: ({ name }) => worktrees.status(name),\n      worktree_run: ({ name, command }) => worktrees.run(name, command),\n      worktree_remove: ({ name, force, complete_task }) => worktrees.remove(name, force, complete_task),\n      worktree_keep: ({ name }) => worktrees.keep(name),\n      worktree_events: ({ limit }) => events.listRecent(limit)\n    },\n    messages: history\n  });\n}\n\nif (isMainModule(import.meta.url)) {\n  console.log(\"Repo root for s12: \" + repoRoot);\n  if (!worktrees.gitAvailable) console.log(\"Note: Not in a git repo. worktree_* tools will return errors.\");\n  await startRepl({ sessionId: \"s12\", runTurn: runS12 });\n}\n"
     }
   ],
   "diffs": [
@@ -440,7 +428,7 @@
       "newTools": [
         "todo"
       ],
-      "locDelta": 17
+      "locDelta": -1
     },
     {
       "from": "s03",
@@ -452,7 +440,7 @@
       "newTools": [
         "task"
       ],
-      "locDelta": -4
+      "locDelta": -14
     },
     {
       "from": "s04",
@@ -464,7 +452,7 @@
       "newTools": [
         "load_skill"
       ],
-      "locDelta": -2
+      "locDelta": 26
     },
     {
       "from": "s05",
@@ -474,10 +462,9 @@
         "runS06"
       ],
       "newTools": [
-        "TodoWrite",
-        "compress"
+        "compact"
       ],
-      "locDelta": 27
+      "locDelta": -17
     },
     {
       "from": "s06",
@@ -492,7 +479,7 @@
         "task_list",
         "task_get"
       ],
-      "locDelta": -48
+      "locDelta": -4
     },
     {
       "from": "s07",
@@ -502,60 +489,53 @@
         "runS08"
       ],
       "newTools": [
-        "TodoWrite",
         "background_run",
-        "background_check"
+        "check_background"
       ],
-      "locDelta": 2
+      "locDelta": -11
     },
     {
       "from": "s08",
       "to": "s09",
-      "newClasses": [
-        "TeammateManager"
-      ],
+      "newClasses": [],
       "newFunctions": [
         "runS09"
       ],
       "newTools": [
         "spawn_teammate",
-        "team_list",
+        "list_teammates",
         "send_message",
-        "read_inbox"
+        "read_inbox",
+        "broadcast"
       ],
-      "locDelta": 36
+      "locDelta": 19
     },
     {
       "from": "s09",
       "to": "s10",
       "newClasses": [],
       "newFunctions": [
-        "request",
         "runS10"
       ],
       "newTools": [
-        "plan_approval_request",
-        "shutdown_request"
+        "shutdown_request",
+        "shutdown_response",
+        "plan_approval"
       ],
-      "locDelta": -23
+      "locDelta": 8
     },
     {
       "from": "s10",
       "to": "s11",
-      "newClasses": [
-        "ClaimManager"
-      ],
+      "newClasses": [],
       "newFunctions": [
         "runS11"
       ],
       "newTools": [
-        "task_list",
-        "task_get",
-        "claimable_tasks",
-        "claim_task",
-        "idle"
+        "idle",
+        "claim_task"
       ],
-      "locDelta": 19
+      "locDelta": 6
     },
     {
       "from": "s11",
@@ -566,7 +546,10 @@
       ],
       "newTools": [
         "task_create",
+        "task_list",
+        "task_get",
         "task_update",
+        "task_bind_worktree",
         "worktree_create",
         "worktree_list",
         "worktree_status",
@@ -575,7 +558,7 @@
         "worktree_keep",
         "worktree_events"
       ],
-      "locDelta": -8
+      "locDelta": 8
     }
   ]
 }

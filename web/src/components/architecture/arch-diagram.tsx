@@ -4,6 +4,9 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { LAYERS } from "@/lib/constants";
 import versionsData from "@/data/generated/versions.json";
+import type { VersionIndex } from "@/types/agent-data";
+
+const versionIndex = versionsData as VersionIndex;
 
 const CLASS_DESCRIPTIONS: Record<string, string> = {
   TodoManager: "Visible task planning with constraints",
@@ -32,7 +35,7 @@ function getLayerColorClasses(versionId: string): {
   bg: string;
 } {
   const v =
-    versionsData.versions.find((v) => v.id === versionId) as { layer?: string } | undefined;
+    versionIndex.versions.find((v) => v.id === versionId);
   const layer = v?.layer;
   switch (layer) {
     case "tools":
@@ -71,7 +74,7 @@ function getLayerColorClasses(versionId: string): {
 function collectClassesUpTo(
   targetId: string
 ): { name: string; introducedIn: string }[] {
-  const { versions, diffs } = versionsData;
+  const { versions } = versionIndex;
   const order = versions.map((v) => v.id);
   const targetIdx = order.indexOf(targetId);
   if (targetIdx < 0) return [];
@@ -94,9 +97,9 @@ function collectClassesUpTo(
 }
 
 function getNewClassNames(version: string): Set<string> {
-  const diff = versionsData.diffs.find((d) => d.to === version);
+  const diff = versionIndex.diffs.find((d) => d.to === version);
   if (!diff) {
-    const v = versionsData.versions.find((ver) => ver.id === version);
+    const v = versionIndex.versions.find((ver) => ver.id === version);
     return new Set(v?.classes?.map((c) => c.name) ?? []);
   }
   return new Set(diff.newClasses ?? []);
@@ -105,7 +108,7 @@ function getNewClassNames(version: string): Set<string> {
 export function ArchDiagram({ version }: ArchDiagramProps) {
   const allClasses = collectClassesUpTo(version);
   const newClassNames = getNewClassNames(version);
-  const versionData = versionsData.versions.find((v) => v.id === version);
+  const versionData = versionIndex.versions.find((v) => v.id === version);
   const tools = versionData?.tools ?? [];
 
   const reversed = [...allClasses].reverse();
