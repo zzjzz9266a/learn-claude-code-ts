@@ -1,4 +1,8 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": "out",
   "redirects": [
     {
       "source": "/:path(.*)",
@@ -13,7 +17,7 @@
     },
     {
       "source": "/",
-      "destination": "/en",
+      "destination": "/en/",
       "permanent": false
     }
   ]
