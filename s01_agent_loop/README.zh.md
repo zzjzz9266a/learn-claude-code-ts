@@ -130,7 +130,7 @@ async function agent_loop(messages: any[]): Promise<void> {
 **准备**（首次运行）：
 
 ```sh
-pip install -r requirements.txt
+npm install
 cp .env.example .env
 # 编辑 .env，填入 ANTHROPIC_API_KEY 和 MODEL_ID
 ```

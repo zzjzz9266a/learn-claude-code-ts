@@ -28,6 +28,11 @@ body {
   color: var(--color-text);
 }
 
+.prose-custom {
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
 @media (max-width: 640px) {
   pre, code {
     font-size: 11px;
@@ -188,6 +193,7 @@ body {
 .prose-custom pre {
   position: relative;
   overflow-x: auto;
+  max-width: 100%;
   margin-top: 1rem;
   margin-bottom: 1rem;
   border-radius: 0.75rem;
@@ -198,6 +204,11 @@ body {
   line-height: 1.6;
   color: #e2e8f0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.prose-custom pre code {
+  display: block;
+  min-width: 100%;
 }
 
 .prose-custom pre.code-block {
@@ -368,10 +379,18 @@ body {
 
 /* -- Tables -- */
 
-.prose-custom table {
-  width: 100%;
+.prose-custom .table-scroll {
+  max-width: 100%;
   margin-top: 1.25rem;
   margin-bottom: 1.25rem;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+}
+
+.prose-custom table {
+  width: 100%;
+  margin-top: 0;
+  margin-bottom: 0;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8125rem;

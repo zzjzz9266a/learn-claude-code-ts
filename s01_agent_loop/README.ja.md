@@ -130,7 +130,7 @@ async function agent_loop(messages: any[]): Promise<void> {
 **準備**（初回のみ）：
 
 ```sh
-pip install -r requirements.txt
+npm install
 cp .env.example .env
 # .env を編集し、ANTHROPIC_API_KEY と MODEL_ID を入力
 ```

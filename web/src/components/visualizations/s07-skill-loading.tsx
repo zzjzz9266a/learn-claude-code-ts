@@ -7,90 +7,84 @@ import { StepControls } from "@/components/visualizations/shared/step-controls";
 interface SkillEntry {
   name: string;
   summary: string;
-  fullTokens: number;
   content: string[];
 }
 
 const SKILLS: SkillEntry[] = [
   {
-    name: "/commit",
-    summary: "Create git commits following repo conventions",
-    fullTokens: 320,
+    name: "code-review",
+    summary: "Review code for bugs, security, and maintainability",
     content: [
-      "1. Run git status + git diff to see changes",
-      "2. Analyze all staged changes and draft message",
-      "3. Create commit with Co-Authored-By trailer",
-      "4. Run git status after commit to verify",
+      "# Code Review Skill",
+      "1. Inspect the change and its surrounding code",
+      "2. Prioritize bugs and behavioral regressions",
+      "3. Report missing tests and residual risk",
     ],
   },
   {
-    name: "/review-pr",
-    summary: "Review pull requests for bugs and style",
-    fullTokens: 480,
+    name: "pdf",
+    summary: "Read, create, and modify PDF files",
     content: [
-      "1. Fetch PR diff via gh pr view",
-      "2. Analyze changes file by file for issues",
-      "3. Check for bugs, security, and style problems",
-      "4. Post review comments with gh pr review",
+      "# PDF Processing Skill",
+      "1. Choose text extraction or rendered inspection",
+      "2. Preserve page order and layout where needed",
+      "3. Verify the produced PDF before returning it",
     ],
   },
   {
-    name: "/test",
-    summary: "Run and analyze test suites",
-    fullTokens: 290,
+    name: "agent-builder",
+    summary: "Design and build agents for a target domain",
     content: [
-      "1. Detect test framework from package.json",
-      "2. Run test suite and capture output",
-      "3. Analyze failures and suggest fixes",
-      "4. Re-run after applying fixes",
+      "# Agent Builder Skill",
+      "1. Define the agent's task and boundaries",
+      "2. Select tools and state",
+      "3. Test the complete loop",
     ],
   },
   {
-    name: "/deploy",
-    summary: "Deploy application to target environment",
-    fullTokens: 350,
+    name: "mcp-builder",
+    summary: "Build MCP servers and expose external tools",
     content: [
-      "1. Verify all tests pass before deploy",
-      "2. Build production bundle",
-      "3. Push to deployment target via CI",
-      "4. Verify health check on deployed URL",
+      "# MCP Server Building Skill",
+      "1. Define tool schemas",
+      "2. Connect handlers to external services",
+      "3. Verify discovery and tool calls",
     ],
   },
 ];
 
-const TOKEN_STATES = [120, 120, 440, 440, 780, 780];
-const MAX_TOKEN_DISPLAY = 1000;
+const LOADED_STATES = [0, 0, 1, 1, 2, 2];
 
 const STEPS = [
   {
-    title: "Layer 1: Compact Summaries",
+    title: "Scan the Catalog",
     description:
-      "All skills are summarized in the system prompt. Compact, always present.",
+      "Startup adds skill names and descriptions to the system prompt.",
   },
   {
-    title: "Skill Invocation",
+    title: "A Specialized Task",
     description:
-      'The model recognizes a skill invocation and triggers the Skill tool.',
+      "The user asks for work covered by one of the listed skills.",
   },
   {
-    title: "Layer 2: Full Injection",
+    title: "Load the Skill",
     description:
       "The full skill instructions are injected as a tool_result, not into the system prompt.",
   },
   {
-    title: "In Context Now",
+    title: "Follow the Instructions",
     description:
       "The detailed instructions appear as if a tool returned them. The model follows them precisely.",
   },
   {
-    title: "Stack Skills",
+    title: "Load Another Skill",
     description:
-      "Multiple skills can be loaded. Only summaries are permanent; full content comes and goes.",
+      "A later task can load a different SKILL.md through the same tool.",
   },
   {
-    title: "Two-Layer Architecture",
+    title: "Catalog and Full Content",
     description:
-      "Layer 1: always present, tiny. Layer 2: loaded on demand, detailed. Elegant separation.",
+      "The catalog supports discovery; load_skill returns the selected instructions.",
   },
 ];
 
@@ -105,7 +99,7 @@ export default function SkillLoading({ title }: { title?: string }) {
     toggleAutoPlay,
   } = useSteppedVisualization({ totalSteps: STEPS.length, autoPlayInterval: 2500 });
 
-  const tokenCount = TOKEN_STATES[currentStep];
+  const loadedCount = LOADED_STATES[currentStep];
   const highlightedSkill = currentStep >= 1 && currentStep <= 3 ? 0 : currentStep >= 4 ? 1 : -1;
   const showFirstContent = currentStep >= 2;
   const showSecondContent = currentStep >= 4;
@@ -179,10 +173,10 @@ export default function SkillLoading({ title }: { title?: string }) {
                   className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/30"
                 >
                   <span className="text-xs text-blue-600 dark:text-blue-400">
-                    User types:
+                    User asks:
                   </span>
                   <code className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
-                    /commit
+                    Review this change for bugs and regressions.
                   </code>
                 </motion.div>
               )}
@@ -194,10 +188,10 @@ export default function SkillLoading({ title }: { title?: string }) {
                   className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/30"
                 >
                   <span className="text-xs text-blue-600 dark:text-blue-400">
-                    User types:
+                    User asks:
                   </span>
                   <code className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
-                    /review-pr
+                    Extract the tables from this PDF.
                   </code>
                 </motion.div>
               )}
@@ -239,7 +233,7 @@ export default function SkillLoading({ title }: { title?: string }) {
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full bg-blue-500" />
                           <span className="text-xs font-bold text-blue-700 dark:text-blue-300">
-                            SKILL.md: /commit
+                            SKILL.md: code-review
                           </span>
                         </div>
                         <span className="rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[10px] text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
@@ -281,7 +275,7 @@ export default function SkillLoading({ title }: { title?: string }) {
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full bg-purple-500" />
                           <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-                            SKILL.md: /review-pr
+                            SKILL.md: pdf
                           </span>
                         </div>
                         <span className="rounded bg-purple-100 px-1.5 py-0.5 font-mono text-[10px] text-purple-600 dark:bg-purple-900/40 dark:text-purple-300">
@@ -318,7 +312,7 @@ export default function SkillLoading({ title }: { title?: string }) {
                 >
                   The Skill tool returns content as a tool_result message.
                   The model sees it in context and follows the instructions.
-                  No system prompt bloat.
+                  The full file is now part of the message history.
                 </motion.div>
               )}
             </AnimatePresence>
@@ -334,18 +328,18 @@ export default function SkillLoading({ title }: { title?: string }) {
                 >
                   <div className="flex-1 rounded border border-zinc-200 bg-zinc-50 p-2 text-center dark:border-zinc-700 dark:bg-zinc-800">
                     <div className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
-                      LAYER 1
+                      CATALOG
                     </div>
                     <div className="text-xs text-zinc-600 dark:text-zinc-300">
-                      Always present, ~120 tokens
+                      Names and descriptions in the system prompt
                     </div>
                   </div>
                   <div className="flex-1 rounded border border-blue-200 bg-blue-50 p-2 text-center dark:border-blue-700 dark:bg-blue-900/20">
                     <div className="text-[10px] font-semibold text-blue-500 dark:text-blue-400">
-                      LAYER 2
+                      FULL CONTENT
                     </div>
                     <div className="text-xs text-blue-600 dark:text-blue-300">
-                      On demand, ~300-500 tokens each
+                      Selected SKILL.md returned by load_skill
                     </div>
                   </div>
                 </motion.div>
@@ -353,10 +347,10 @@ export default function SkillLoading({ title }: { title?: string }) {
             </AnimatePresence>
           </div>
 
-          {/* Token Gauge (vertical bar on the right) */}
+          {/* Loaded skill count */}
           <div className="flex w-16 flex-col items-center">
             <div className="mb-1 text-center font-mono text-[10px] text-zinc-400">
-              Tokens
+              Loaded
             </div>
             <div
               className="relative w-8 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"
@@ -364,25 +358,21 @@ export default function SkillLoading({ title }: { title?: string }) {
             >
               <motion.div
                 animate={{
-                  height: `${(tokenCount / MAX_TOKEN_DISPLAY) * 100}%`,
+                  height: `${loadedCount * 35}%`,
                 }}
                 transition={{ duration: 0.5 }}
                 className={`absolute bottom-0 w-full rounded-full ${
-                  tokenCount > 600
-                    ? "bg-amber-500"
-                    : tokenCount > 300
-                      ? "bg-blue-500"
-                      : "bg-emerald-500"
+                  loadedCount > 1 ? "bg-blue-500" : "bg-emerald-500"
                 }`}
               />
             </div>
             <motion.div
-              key={tokenCount}
+              key={loadedCount}
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
               className="mt-2 text-center font-mono text-xs font-semibold text-zinc-600 dark:text-zinc-300"
             >
-              {tokenCount}
+              {loadedCount}
             </motion.div>
           </div>
         </div>

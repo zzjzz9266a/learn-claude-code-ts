@@ -25,7 +25,7 @@
  * hooks, and lifecycle controls around it.
  *
  * Usage:
- *     pip install anthropic python-dotenv
+ *     npm install
  *     ANTHROPIC_API_KEY=... npx tsx s01_agent_loop/code.ts
  */
 

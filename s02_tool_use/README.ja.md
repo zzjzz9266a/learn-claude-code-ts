@@ -154,8 +154,8 @@ npx tsx s02_tool_use/code.ts
 
 1. `Read the file README.md and tell me what this project is about`
 2. `Create a file called test.ts that prints "hello", then read it back`
-3. `Find all Python files in this directory`
-4. `Read both README.md and requirements.txt, then create a summary file`
+3. `Find all TypeScript files in this directory`
+4. `Read both README.md and package.json, then create a summary file`
 
 観察のポイント：モデルがツールを一つだけ呼び出すときと、複数同時に呼び出すときの違い。複数のツール呼び出しは正しい順序で実行されているか？
 

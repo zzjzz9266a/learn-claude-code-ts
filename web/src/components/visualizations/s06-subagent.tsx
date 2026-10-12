@@ -29,7 +29,7 @@ const CHILD_WORK_MESSAGES: MessageBlock[] = [
 
 const SUMMARY_BLOCK: MessageBlock = {
   id: "summary",
-  label: "summary: 3 tests written, all passing",
+  label: "final: 3 tests written, all passing",
   color: "bg-teal-500",
 };
 
@@ -40,9 +40,9 @@ const STEPS = [
       "The parent agent has accumulated messages from the conversation.",
   },
   {
-    title: "Spawn Subagent",
+    title: "Run Subagent",
     description:
-      "Task tool creates a child with fresh messages[]. Only the task description is passed.",
+      "Task runs a nested agent loop with fresh messages[]. Only the task prompt is passed.",
   },
   {
     title: "Independent Work",
@@ -50,19 +50,19 @@ const STEPS = [
       "The child has its own context. It doesn't see the parent's history.",
   },
   {
-    title: "Compress Result",
+    title: "Final Response",
     description:
-      "The child's full conversation compresses into one summary.",
+      "The subagent finishes with a text response.",
   },
   {
-    title: "Return Summary",
+    title: "Return Final Text",
     description:
-      "Only the summary returns. The child's full context is discarded.",
+      "The final text becomes the task tool result in the parent conversation.",
   },
   {
-    title: "Clean Context",
+    title: "Parent Continues",
     description:
-      "The parent gets a clean summary without context bloat. This is fresh-context isolation via messages[].",
+      "The parent continues without copying the subagent's intermediate messages.",
   },
 ];
 
@@ -112,12 +112,12 @@ export default function SubagentIsolation({ title }: { title?: string }) {
       >
         {/* Main layout: two containers side by side */}
         <div className="relative flex gap-4" style={{ minHeight: 340 }}>
-          {/* Parent Process Container */}
+          {/* Parent agent loop */}
           <div className="flex-1 rounded-xl border-2 border-blue-300 bg-blue-50/50 p-4 dark:border-blue-700 dark:bg-blue-950/20">
             <div className="mb-3 flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-blue-500" />
               <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                Parent Process
+                Parent agent loop
               </span>
             </div>
             <div className="mb-2 font-mono text-xs text-zinc-400">
@@ -146,7 +146,7 @@ export default function SubagentIsolation({ title }: { title?: string }) {
                 transition={{ delay: 0.5 }}
                 className="mt-3 rounded border border-blue-200 bg-white/60 px-2 py-1 text-center text-xs text-blue-600 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
               >
-                3 original + 1 summary = clean context
+                parent receives one task result
               </motion.div>
             )}
           </div>
@@ -161,12 +161,12 @@ export default function SubagentIsolation({ title }: { title?: string }) {
               className="rounded bg-zinc-200 px-2 py-1 text-center font-mono text-[10px] text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400"
               style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
             >
-              ISOLATION
+              MESSAGE BOUNDARY
             </motion.div>
             <div className="h-full w-px border-l-2 border-dashed border-zinc-300 dark:border-zinc-600" />
           </div>
 
-          {/* Child Process Container */}
+          {/* Nested subagent loop */}
           <div
             className={`flex-1 rounded-xl border-2 p-4 transition-colors duration-300 ${
               showChildEmpty
@@ -195,7 +195,7 @@ export default function SubagentIsolation({ title }: { title?: string }) {
                       : "text-purple-700 dark:text-purple-300"
                 }`}
               >
-                Child Process
+                Subagent loop
               </span>
             </div>
             <div className="mb-2 font-mono text-xs text-zinc-400">
@@ -209,7 +209,7 @@ export default function SubagentIsolation({ title }: { title?: string }) {
                 className="flex h-24 items-center justify-center rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700"
               >
                 <span className="text-xs text-zinc-400">
-                  not yet spawned
+                  not yet started
                 </span>
               </motion.div>
             )}
@@ -237,7 +237,7 @@ export default function SubagentIsolation({ title }: { title?: string }) {
                 animate={{ opacity: 1, scale: 1 }}
                 className="mt-3 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-center text-xs text-amber-700 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-300"
               >
-                Compressing full context into summary...
+                Preparing final response...
               </motion.div>
             )}
 
@@ -247,7 +247,7 @@ export default function SubagentIsolation({ title }: { title?: string }) {
                 animate={{ opacity: 1 }}
                 className="mt-3 rounded border border-red-200 bg-red-50 px-2 py-1 text-center text-xs text-red-500 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
               >
-                context discarded
+                local messages released
               </motion.div>
             )}
           </div>

@@ -154,8 +154,8 @@ Try these prompts:
 
 1. `Read the file README.md and tell me what this project is about`
 2. `Create a file called test.ts that prints "hello", then read it back`
-3. `Find all Python files in this directory`
-4. `Read both README.md and requirements.txt, then create a summary file`
+3. `Find all TypeScript files in this directory`
+4. `Read both README.md and package.json, then create a summary file`
 
 What to watch for: When does the model call just one tool, and when does it call multiple at once? Are multiple tool calls executed in the correct order?
 

@@ -28,7 +28,7 @@
  * Builds on s02 (multi-tool). Usage:
  *
  *     npx tsx s03_permission/code.ts
- *     Needs: pip install anthropic python-dotenv + ANTHROPIC_API_KEY in .env
+ *     Needs: npm install + ANTHROPIC_API_KEY in .env
  */
 
 import { spawnSync } from "node:child_process";

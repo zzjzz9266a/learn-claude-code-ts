@@ -4,9 +4,6 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { LAYERS } from "@/lib/constants";
 import versionsData from "@/data/generated/versions.json";
-import type { VersionIndex } from "@/types/agent-data";
-
-const versionIndex = versionsData as VersionIndex;
 
 const CLASS_DESCRIPTIONS: Record<string, string> = {
   TodoManager: "Visible task planning with constraints",
@@ -19,6 +16,10 @@ const CLASS_DESCRIPTIONS: Record<string, string> = {
   TeammateManager: "Multi-agent team lifecycle and coordination",
   Teammate: "Individual agent identity and state tracking",
   SharedBoard: "Cross-agent shared state coordination",
+  CronJob: "Durable recurring job definition",
+  ProtocolState: "Pending team protocol requests and response matching",
+  MCPClient: "External tool discovery and invocation client",
+  RecoveryState: "Retry, fallback, and continuation state",
 };
 
 interface ArchDiagramProps {
@@ -35,7 +36,7 @@ function getLayerColorClasses(versionId: string): {
   bg: string;
 } {
   const v =
-    versionIndex.versions.find((v) => v.id === versionId);
+    versionsData.versions.find((v) => v.id === versionId) as { layer?: string } | undefined;
   const layer = v?.layer;
   switch (layer) {
     case "tools":
@@ -71,44 +72,38 @@ function getLayerColorClasses(versionId: string): {
   }
 }
 
-function collectClassesUpTo(
+function collectClassesForVersion(
   targetId: string
 ): { name: string; introducedIn: string }[] {
-  const { versions } = versionIndex;
-  const order = versions.map((v) => v.id);
-  const targetIdx = order.indexOf(targetId);
-  if (targetIdx < 0) return [];
+  const targetIndex = versionsData.versions.findIndex((v) => v.id === targetId);
+  const version = targetIndex >= 0 ? versionsData.versions[targetIndex] : undefined;
 
-  const result: { name: string; introducedIn: string }[] = [];
-  const seen = new Set<string>();
-
-  for (let i = 0; i <= targetIdx; i++) {
-    const v = versions[i];
-    if (!v.classes) continue;
-    for (const cls of v.classes) {
-      if (!seen.has(cls.name)) {
-        seen.add(cls.name);
-        result.push({ name: cls.name, introducedIn: v.id });
-      }
-    }
-  }
-
-  return result;
+  return (
+    version?.classes?.map((cls) => ({
+      name: cls.name,
+      introducedIn:
+        versionsData.versions
+          .slice(0, targetIndex + 1)
+          .find((candidate) =>
+            candidate.classes?.some((candidateCls) => candidateCls.name === cls.name)
+          )?.id ?? targetId,
+    })) ?? []
+  );
 }
 
 function getNewClassNames(version: string): Set<string> {
-  const diff = versionIndex.diffs.find((d) => d.to === version);
+  const diff = versionsData.diffs.find((d) => d.to === version);
   if (!diff) {
-    const v = versionIndex.versions.find((ver) => ver.id === version);
+    const v = versionsData.versions.find((ver) => ver.id === version);
     return new Set(v?.classes?.map((c) => c.name) ?? []);
   }
   return new Set(diff.newClasses ?? []);
 }
 
 export function ArchDiagram({ version }: ArchDiagramProps) {
-  const allClasses = collectClassesUpTo(version);
+  const allClasses = collectClassesForVersion(version);
   const newClassNames = getNewClassNames(version);
-  const versionData = versionIndex.versions.find((v) => v.id === version);
+  const versionData = versionsData.versions.find((v) => v.id === version);
   const tools = versionData?.tools ?? [];
 
   const reversed = [...allClasses].reverse();
