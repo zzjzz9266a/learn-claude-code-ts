@@ -10,6 +10,8 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": ["node", "vitest/globals"]
   },
   "include": ["agents/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "s*/**/*.ts", "vitest.config.ts"]
