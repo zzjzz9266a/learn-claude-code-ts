@@ -199,7 +199,7 @@ return new SessionResult(text, decision.action);
 Install dependencies and prepare `.env`:
 
 ```bash
-pip install -r requirements.txt
+npm install
 
 # .env
 ANTHROPIC_API_KEY=...

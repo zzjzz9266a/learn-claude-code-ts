@@ -15,7 +15,7 @@
     },
     {
       "type": "tool_call",
-      "content": "echo 'console.log("Hello, World!");' > hello.ts",
+      "content": "echo 'console.log(\"Hello, World!\");' > hello.ts",
       "toolName": "bash",
       "annotation": "Tool call: the model generates a bash command"
     },
@@ -38,7 +38,7 @@
     },
     {
       "type": "tool_result",
-      "content": "print(\"Hello, World!\")",
+      "content": "console.log(\"Hello, World!\");",
       "toolName": "bash",
       "annotation": "File contents confirmed"
     },

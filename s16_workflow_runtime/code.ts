@@ -996,9 +996,10 @@ export const SAMPLE_META = {
 
 export const DIMENSIONS = ["correctness", "security", "performance", "style"];
 export const DEMO_CHANGES = (
-  "def load_user(user_id):\n" +
-  "    query = f\"SELECT * FROM users WHERE id = {user_id}\"\n" +
-  "    return db.execute(query).fetchone()\n"
+  "function load_user(user_id) {\n" +
+  "    const query = `SELECT * FROM users WHERE id = ${user_id}`;\n" +
+  "    return db.execute(query).fetchone();\n" +
+  "}\n"
 );
 
 export async function sample_workflow(ctx: ExecutionState, args: any): Promise<any> {

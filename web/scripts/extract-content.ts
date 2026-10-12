@@ -165,7 +165,7 @@ function assignmentBody(source: string, openIndex: number): string {
 }
 
 function extractTools(source: string): string[] {
-  const assignmentPattern = /^(?:export\s+)?(?:const\s+)?(?:TOOLS|BASE_TOOLS|BUILTIN_TOOLS|SUB_TOOLS|TASK_TOOL|WORKFLOW_TOOL)\s*=\s*([\[{])/gm;
+  const assignmentPattern = /^(?:export\s+)?(?:const\s+)?(?:TOOLS|BASE_TOOLS|BUILTIN_TOOLS|SUB_TOOLS|TASK_TOOL|WORKFLOW_TOOL)(?:\s*:\s*[^=\n]+)?\s*=\s*([\[{])/gm;
   const toolPattern = /["']name["']\s*:\s*["']([\w-]+)["']/g;
   const tools = new Set<string>();
   let assignment;

@@ -199,7 +199,7 @@ return new SessionResult(text, decision.action);
 dependency を install し、`.env` を準備します。
 
 ```bash
-pip install -r requirements.txt
+npm install
 
 # .env
 ANTHROPIC_API_KEY=...

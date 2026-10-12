@@ -62,7 +62,7 @@
     {
       "type": "tool_call",
       "toolName": "bash",
-      "content": "{\"command\":\"python -m unittest tests.test_agent_teams_runtime\",\"run_in_background\":true}",
+      "content": "{\"command\":\"npx vitest run tests/agent-teams-runtime.test.ts\",\"run_in_background\":true}",
       "annotation": "Long-running validation goes through the background task path."
     },
     {

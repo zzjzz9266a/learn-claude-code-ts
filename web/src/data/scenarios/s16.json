@@ -11,7 +11,7 @@
     {
       "type": "tool_call",
       "toolName": "Workflow",
-      "content": "{\"name\":\"review-changes\",\"args\":{\"budget\":null,\"changes\":\"def load_user(user_id):\\n    query = f\\\"SELECT * FROM users WHERE id = {user_id}\\\"\\n    return db.execute(query).fetchone()\\n\"}}",
+      "content": "{\"name\":\"review-changes\",\"args\":{\"budget\":null,\"changes\":\"function load_user(user_id) {\\n    const query = `SELECT * FROM users WHERE id = ${user_id}`;\\n    return db.execute(query).fetchone();\\n}\\n\"}}",
       "annotation": "The model selects a saved workflow and arguments; the host registry supplies its trusted metadata and script."
     },
     {

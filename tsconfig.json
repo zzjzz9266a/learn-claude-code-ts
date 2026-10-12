@@ -14,5 +14,5 @@
     "allowImportingTsExtensions": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["agents/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "s*/**/*.ts", "vitest.config.ts"]
+  "include": ["agents/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "s[0-9][0-9]_*/**/*.ts", "vitest.config.ts"]
 }

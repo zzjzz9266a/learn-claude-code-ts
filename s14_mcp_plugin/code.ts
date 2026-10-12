@@ -355,17 +355,16 @@ export function run_connect_mcp(name: string): string {
   return connect_mcp(name);
 }
 
-export const BUILTIN_TOOLS: any[] = [
-  ...BASE_TOOLS,
-  {"name": "connect_mcp",
-   "description": "Connect to an MCP server and discover its tools.",
-   "input_schema": {
-     "type": "object",
-     "properties": {"name": {"type": "string", "enum": ["docs", "deploy"]}},
-     "required": ["name"],
-   }},
-];
-export const CONNECT_TOOL = BUILTIN_TOOLS[BASE_TOOLS.length];
+export const CONNECT_TOOL = {
+  "name": "connect_mcp",
+  "description": "Connect to an MCP server and discover its tools.",
+  "input_schema": {
+    "type": "object",
+    "properties": {"name": {"type": "string", "enum": ["docs", "deploy"]}},
+    "required": ["name"],
+  },
+};
+export const BUILTIN_TOOLS: any[] = [...BASE_TOOLS, CONNECT_TOOL];
 export const BUILTIN_HANDLERS: Record<string, (input: any) => string> = {
   ...BASE_HANDLERS,
   "connect_mcp": (input: any) => run_connect_mcp(input["name"]),
