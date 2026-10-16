@@ -7,21 +7,25 @@ on:
     branches: [main]
 
 jobs:
-  python-smoke:
+  typecheck-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          python-version: "3.11"
+          node-version: "22"
+          cache: npm
 
       - name: Install dependencies
-        run: pip install anthropic python-dotenv pytest
+        run: npm ci
 
-      - name: Run Python smoke tests
-        run: python -m pytest tests/test_agents_smoke.py -q
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
 
   web-build:
     runs-on: ubuntu-latest

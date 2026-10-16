@@ -2,7 +2,27 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, test } from "vitest";
 
-const expectedSessions = [
+const expectedChapters = [
+  "s01_agent_loop",
+  "s02_tool_use",
+  "s03_permission",
+  "s04_hooks",
+  "s05_todo_write",
+  "s06_subagent",
+  "s07_skill_loading",
+  "s08_context_compact",
+  "s09_memory",
+  "s10_task_system",
+  "s11_background_tasks",
+  "s12_cron_scheduler",
+  "s13_agent_teams",
+  "s14_mcp_plugin",
+  "s15_integrated_harness",
+  "s16_workflow_runtime",
+  "s17_goal_loop",
+];
+
+const legacySessions = [
   "s01_agent_loop.ts",
   "s02_tool_use.ts",
   "s03_todo_write.ts",
@@ -48,12 +68,21 @@ function extractToolNames(source: string): string[] {
 }
 
 describe("mirror sync invariants", () => {
-  test("session implementations match the upstream chapter set", () => {
+  test("current track chapters match the upstream s01-s17 set", () => {
+    for (const chapter of expectedChapters) {
+      expect(existsSync(join(chapter, "code.ts")), chapter).toBe(true);
+      expect(existsSync(join(chapter, "README.md")), chapter).toBe(true);
+      expect(existsSync(join(chapter, "README.zh.md")), chapter).toBe(true);
+      expect(existsSync(join(chapter, "README.ja.md")), chapter).toBe(true);
+    }
+  });
+
+  test("legacy session entrypoints remain available", () => {
     const sessions = readdirSync("agents")
       .filter((name) => name.startsWith("s") && name.endsWith(".ts"))
       .sort();
 
-    expect(sessions).toEqual([...expectedSessions].sort());
+    expect(sessions).toEqual([...legacySessions].sort());
   });
 
   test("repository does not keep Python source files", () => {
@@ -64,7 +93,7 @@ describe("mirror sync invariants", () => {
     expect(pythonFiles).toEqual([]);
   });
 
-  test("translated chapter tool sets match upstream semantics", () => {
+  test("legacy chapter tool sets keep their TypeScript entrypoint semantics", () => {
     for (const [filename, expectedTools] of Object.entries(expectedToolSets)) {
       const source = readFileSync(join("agents", filename), "utf8");
       expect(extractToolNames(source), filename).toEqual(expectedTools);
@@ -72,16 +101,22 @@ describe("mirror sync invariants", () => {
   });
 
   test("public mirror content does not expose Python code or filenames", () => {
+    const chapterReadmes = expectedChapters.flatMap((chapter) => [
+      join(chapter, "README.md"),
+      join(chapter, "README.zh.md"),
+      join(chapter, "README.ja.md"),
+    ]);
     const checkedFiles = [
       "README.md",
       "README-zh.md",
       "README-ja.md",
+      ...chapterReadmes,
       ...walkFiles("docs"),
       ...walkFiles("skills"),
       ...walkFiles("web/src/data/annotations"),
       ...walkFiles("web/src/data/scenarios"),
       ...walkFiles("web/src/data/generated")
-    ].filter((file) => file.endsWith(".md") || file.endsWith(".json"));
+    ].filter((file) => existsSync(file) && (file.endsWith(".md") || file.endsWith(".json")));
 
     const leaks = checkedFiles.flatMap((file) => {
       const content = readFileSync(file, "utf8");

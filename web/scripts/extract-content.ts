@@ -5,274 +5,480 @@ import type {
   VersionDiff,
   DocContent,
   VersionIndex,
+  ChapterImage,
 } from "../src/types/agent-data";
 import { VERSION_META, VERSION_ORDER, LEARNING_PATH } from "../src/lib/constants";
 
-// Resolve paths relative to this script's location (web/scripts/)
 const WEB_DIR = path.resolve(__dirname, "..");
 const REPO_ROOT = path.resolve(WEB_DIR, "..");
-const AGENTS_DIR = path.join(REPO_ROOT, "agents");
-const DOCS_DIR = path.join(REPO_ROOT, "docs");
+const LEGACY_AGENTS_DIR = path.join(REPO_ROOT, "agents");
+const LEGACY_DOCS_DIR = path.join(REPO_ROOT, "docs");
 const OUT_DIR = path.join(WEB_DIR, "src", "data", "generated");
+const PUBLIC_DIR = path.join(WEB_DIR, "public");
+const COURSE_ASSETS_DIR = path.join(PUBLIC_DIR, "course-assets");
 
-// Map TypeScript filenames to version IDs
-// s01_agent_loop.ts -> s01
-// s02_tool_use.ts -> s02
-// s_full.ts -> s_full (reference agent, typically skipped)
-function filenameToVersionId(filename: string): string | null {
-  const base = path.basename(filename, ".ts");
-  if (base === "s_full") return null;
-  if (base === "__init__") return null;
+type Locale = "en" | "zh" | "ja";
 
-  const match = base.match(/^(s\d+[a-c]?)_/);
-  if (!match) return null;
-  return match[1];
+interface ChapterSource {
+  id: string;
+  dirName: string;
+  dirPath: string;
+  codePath: string;
 }
 
-// Extract classes from TypeScript source
+function dirToVersionId(dirName: string): string | null {
+  const match = dirName.match(/^(s\d{2})_/);
+  return match ? match[1] : null;
+}
+
+function filenameToVersionId(filename: string): string | null {
+  const base = path.basename(filename, ".ts");
+  if (base === "s_full" || base === "__init__") return null;
+
+  const match = base.match(/^(s\d+[a-c]?)_/);
+  return match ? match[1] : null;
+}
+
+function listRootChapters(): ChapterSource[] {
+  return fs
+    .readdirSync(REPO_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => /^s\d{2}_/.test(name))
+    .sort()
+    .map((dirName) => {
+      const id = dirToVersionId(dirName);
+      if (!id) return null;
+      const dirPath = path.join(REPO_ROOT, dirName);
+      const codePath = path.join(dirPath, "code.ts");
+      if (!fs.existsSync(codePath)) return null;
+      return { id, dirName, dirPath, codePath };
+    })
+    .filter((chapter): chapter is ChapterSource => chapter !== null);
+}
+
 function extractClasses(
   lines: string[]
 ): { name: string; startLine: number; endLine: number }[] {
   const classes: { name: string; startLine: number; endLine: number }[] = [];
-  const classPattern = /^export\s+class\s+(\w+)|^class\s+(\w+)/;
+  const classPattern = /^(?:export\s+)?class\s+(\w+)/;
 
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(classPattern);
-    if (m) {
-      const name = m[1] ?? m[2];
-      const startLine = i + 1;
-      // Find end of class: next class/function at indent 0, or EOF
-      let endLine = lines.length;
-      for (let j = i + 1; j < lines.length; j++) {
-        if (
-          lines[j].match(/^export\s+class\s|^class\s/) ||
-          lines[j].match(/^export\s+async\s+function\s|^export\s+function\s|^async\s+function\s|^function\s/) ||
-          (lines[j].match(/^\S/) && lines[j].trim() !== "" && !lines[j].startsWith("#") && !lines[j].startsWith("@"))
-        ) {
-          endLine = j;
-          break;
-        }
+    const match = lines[i].match(classPattern);
+    if (!match) continue;
+
+    const name = match[1];
+    const startLine = i + 1;
+    let endLine = lines.length;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (
+        lines[j].match(/^(?:export\s+)?class\s/) ||
+        lines[j].match(/^(?:export\s+)?(?:async\s+)?function\s/) ||
+        (lines[j].match(/^\S/) &&
+          lines[j].trim() !== "" &&
+          !lines[j].startsWith("#") &&
+          !lines[j].startsWith("//") &&
+          !lines[j].startsWith("/*") &&
+          !lines[j].startsWith("*") &&
+          !lines[j].startsWith("@"))
+      ) {
+        endLine = j;
+        break;
       }
-      classes.push({ name, startLine, endLine });
     }
+    classes.push({ name, startLine, endLine });
   }
+
   return classes;
 }
 
-// Extract top-level functions from TypeScript source
 function extractFunctions(
   lines: string[]
 ): { name: string; signature: string; startLine: number }[] {
   const functions: { name: string; signature: string; startLine: number }[] = [];
-  const funcPattern = /^(?:export\s+)?(?:async\s+)?function\s+(\w+)\((.*?)\)/;
+  const funcPattern = /^(?:export\s+)?(async\s+)?function\s+(\w+)\((.*?)\)/;
 
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(funcPattern);
-    if (m) {
-      functions.push({
-        name: m[1],
-        signature: `function ${m[1]}(${m[2]})`,
-        startLine: i + 1,
-      });
-    }
+    const match = lines[i].match(funcPattern);
+    if (!match) continue;
+    functions.push({
+      name: match[2],
+      signature: `${match[1] ?? ""}function ${match[2]}(${match[3]})`,
+      startLine: i + 1,
+    });
   }
+
   return functions;
 }
 
-// Extract tool names from TypeScript source.
+function assignmentBody(source: string, openIndex: number): string {
+  const open = source[openIndex];
+  const close = open === "[" ? "]" : "}";
+  let depth = 0;
+  let quote = "";
+  let triple = false;
+  let escaped = false;
+  let comment = false;
+
+  for (let index = openIndex; index < source.length; index++) {
+    const char = source[index];
+    const nextThree = source.slice(index, index + 3);
+    if (comment) {
+      if (char === "\n") comment = false;
+      continue;
+    }
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (triple && nextThree === quote.repeat(3)) {
+        quote = "";
+        triple = false;
+        index += 2;
+      } else if (!triple && char === quote) {
+        quote = "";
+      }
+      continue;
+    }
+    if (char === "#") {
+      comment = true;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      triple = nextThree === char.repeat(3);
+      if (triple) index += 2;
+      continue;
+    }
+    if (char === open) depth += 1;
+    if (char === close) {
+      depth -= 1;
+      if (depth === 0) return source.slice(openIndex, index + 1);
+    }
+  }
+  return "";
+}
+
 function extractTools(source: string): string[] {
-  const toolPattern = /(?:["']name["']|name)\s*:\s*"(\w+)"/g;
+  const assignmentPattern = /^(?:export\s+)?(?:const\s+)?(?:TOOLS|BASE_TOOLS|BUILTIN_TOOLS|SUB_TOOLS|TASK_TOOL|WORKFLOW_TOOL)(?:\s*:\s*[^=\n]+)?\s*=\s*([\[{])/gm;
+  const toolPattern = /["']name["']\s*:\s*["']([\w-]+)["']/g;
   const tools = new Set<string>();
-  let m;
-  while ((m = toolPattern.exec(source)) !== null) {
-    tools.add(m[1]);
+  let assignment;
+  while ((assignment = assignmentPattern.exec(source)) !== null) {
+    const openIndex = assignment.index + assignment[0].lastIndexOf(assignment[1]);
+    const body = assignmentBody(source, openIndex);
+    let tool;
+    while ((tool = toolPattern.exec(body)) !== null) {
+      tools.add(tool[1]);
+    }
   }
   return Array.from(tools);
 }
 
-// Count non-blank, non-comment lines
 function countLoc(lines: string[]): number {
   return lines.filter((line) => {
     const trimmed = line.trim();
-    return trimmed !== "" && !trimmed.startsWith("#");
+    return trimmed !== "" && !trimmed.startsWith("#") && !trimmed.startsWith("//");
   }).length;
 }
 
-// Detect locale from subdirectory path
-// docs/en/s01-the-agent-loop.md -> "en"
-// docs/zh/s01-the-agent-loop.md -> "zh"
-// docs/ja/s01-the-agent-loop.md -> "ja"
-function detectLocale(relPath: string): "en" | "zh" | "ja" {
+function detectLocale(relPath: string): Locale {
   if (relPath.startsWith("zh/") || relPath.startsWith("zh\\")) return "zh";
   if (relPath.startsWith("ja/") || relPath.startsWith("ja\\")) return "ja";
   return "en";
 }
 
-// Extract version from doc filename (e.g., "s01-the-agent-loop.md" -> "s01")
 function extractDocVersion(filename: string): string | null {
-  const m = filename.match(/^(s\d+[a-c]?)-/);
-  return m ? m[1] : null;
+  const match = filename.match(/^(s\d+[a-c]?)-/);
+  return match ? match[1] : null;
 }
 
-// Main extraction
-function main() {
-  console.log("Extracting content from agents and docs...");
-  console.log(`  Repo root: ${REPO_ROOT}`);
-  console.log(`  Agents dir: ${AGENTS_DIR}`);
-  console.log(`  Docs dir: ${DOCS_DIR}`);
+function readText(filePath: string): string {
+  return fs.readFileSync(filePath, "utf-8").replace(/\r\n/g, "\n");
+}
 
-  // Skip extraction if source directories don't exist (e.g. Vercel build).
-  // Pre-committed generated data will be used instead.
-  if (!fs.existsSync(AGENTS_DIR)) {
-    console.log("  Agents directory not found, skipping extraction.");
-    console.log("  Using pre-committed generated data.");
-    return;
-  }
+function titleFromMarkdown(content: string, fallback: string): string {
+  const titleMatch = content.match(/^#\s+(.+)$/m);
+  return titleMatch ? titleMatch[1] : fallback;
+}
 
-  // 1. Read all agent files
-  const agentFiles = fs
-    .readdirSync(AGENTS_DIR)
-    .filter((f) => f.startsWith("s") && f.endsWith(".ts"));
+function cleanCourseAssets() {
+  fs.rmSync(COURSE_ASSETS_DIR, { recursive: true, force: true });
+  fs.mkdirSync(COURSE_ASSETS_DIR, { recursive: true });
+}
 
-  console.log(`  Found ${agentFiles.length} agent files`);
+function copyChapterAssets(chapter: ChapterSource): ChapterImage[] {
+  const imagesDir = path.join(chapter.dirPath, "images");
+  if (!fs.existsSync(imagesDir)) return [];
 
-  const versions: AgentVersion[] = [];
+  const outDir = path.join(COURSE_ASSETS_DIR, chapter.dirName);
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.cpSync(imagesDir, outDir, { recursive: true });
 
-  for (const filename of agentFiles) {
-    const versionId = filenameToVersionId(filename);
-    if (!versionId) {
-      console.warn(`  Skipping ${filename}: could not determine version ID`);
-      continue;
-    }
+  return fs
+    .readdirSync(imagesDir)
+    .filter((filename) => filename.endsWith(".svg"))
+    .filter((filename) => !filename.includes(".en.") && !filename.includes(".ja."))
+    .sort()
+    .map((filename) => ({
+      src: `/course-assets/${chapter.dirName}/${filename}`,
+      alt: filename.replace(/\.svg$/, "").replace(/-/g, " "),
+    }));
+}
 
-    const filePath = path.join(AGENTS_DIR, filename);
-    const source = fs.readFileSync(filePath, "utf-8");
-    const lines = source.split("\n");
+function localeReadmeName(locale: Locale): string {
+  if (locale === "en") return "README.md";
+  return `README.${locale}.md`;
+}
 
-    const meta = VERSION_META[versionId];
-    const classes = extractClasses(lines);
-    const functions = extractFunctions(lines);
-    const tools = extractTools(source);
-    const loc = countLoc(lines);
+function rewriteChapterMarkdown(
+  content: string,
+  chapter: ChapterSource,
+  locale: Locale
+): string {
+  let next = content;
 
-    versions.push({
-      id: versionId,
-      filename,
-      title: meta?.title ?? versionId,
-      subtitle: meta?.subtitle ?? "",
-      loc,
-      tools,
-      newTools: [], // computed after all versions are loaded
-      coreAddition: meta?.coreAddition ?? "",
-      keyInsight: meta?.keyInsight ?? "",
-      classes,
-      functions,
-      layer: meta?.layer ?? "tools",
-      source,
-    });
-  }
-
-  // Sort versions according to VERSION_ORDER
-  const orderMap = new Map(VERSION_ORDER.map((v, i) => [v, i]));
-  versions.sort(
-    (a, b) => (orderMap.get(a.id as any) ?? 99) - (orderMap.get(b.id as any) ?? 99)
+  next = next.replace(
+    /^\[English\]\(README\.md\)\s*.\s*\[中文\]\(README\.zh\.md\)\s*.\s*\[日本語\]\(README\.ja\.md\)\n\n?/m,
+    ""
   );
 
-  // 2. Compute newTools for each version
-  for (let i = 0; i < versions.length; i++) {
-    const prev = i > 0 ? new Set(versions[i - 1].tools) : new Set<string>();
-    versions[i].newTools = versions[i].tools.filter((t) => !prev.has(t));
+  next = next.replace(
+    /(!\[[^\]]*\]\()images\/([^)]+)(\))/g,
+    `$1/course-assets/${chapter.dirName}/$2$3`
+  );
+
+  next = next.replace(
+    /\]\(\.\.\/(s\d{2}_[^)\/]+)\/?\)/g,
+    (_match, dirName) => {
+      const id = dirToVersionId(dirName);
+      return id ? `](/${locale}/${id})` : `](../${dirName}/)`;
+    }
+  );
+
+  next = next.replace(
+    /\]\(\.\/(s\d{2}_[^)\/]+)\/?\)/g,
+    (_match, dirName) => {
+      const id = dirToVersionId(dirName);
+      return id ? `](/${locale}/${id})` : `](./${dirName}/)`;
+    }
+  );
+
+  return next;
+}
+
+function buildRootVersions(chapters: ChapterSource[]): AgentVersion[] {
+  const versions: AgentVersion[] = [];
+  for (const chapter of chapters) {
+    const source = readText(chapter.codePath);
+    const lines = source.split("\n");
+    const meta = VERSION_META[chapter.id];
+    const localTools = extractTools(source);
+    const inheritedId = source.match(/^(?:export\s+)?(?:const\s+)?INHERITS_TOOLS_FROM\s*=\s*"(s\d{2})"/m)?.[1];
+    const inheritedTools = inheritedId
+      ? versions.find((version) => version.id === inheritedId)?.tools ?? []
+      : [];
+
+    versions.push({
+      id: chapter.id,
+      filename: `${chapter.dirName}/code.ts`,
+      title: meta?.title ?? chapter.id,
+      subtitle: meta?.subtitle ?? "",
+      loc: countLoc(lines),
+      tools: Array.from(new Set([...inheritedTools, ...localTools])),
+      newTools: [] as string[],
+      coreAddition: meta?.coreAddition ?? "",
+      keyInsight: meta?.keyInsight ?? "",
+      classes: extractClasses(lines),
+      functions: extractFunctions(lines),
+      layer: meta?.layer ?? "tools",
+      source,
+      images: copyChapterAssets(chapter),
+    });
+  }
+  return versions;
+}
+
+function buildLegacyVersions(): AgentVersion[] {
+  if (!fs.existsSync(LEGACY_AGENTS_DIR)) return [];
+
+  const agentFiles = fs
+    .readdirSync(LEGACY_AGENTS_DIR)
+    .filter((filename) => filename.startsWith("s") && filename.endsWith(".ts"));
+
+  const versions = agentFiles
+    .map((filename) => {
+      const id = filenameToVersionId(filename);
+      if (!id) return null;
+
+      const filePath = path.join(LEGACY_AGENTS_DIR, filename);
+      const source = readText(filePath);
+      const lines = source.split("\n");
+      const meta = VERSION_META[id];
+
+      return {
+        id,
+        filename,
+        title: meta?.title ?? id,
+        subtitle: meta?.subtitle ?? "",
+        loc: countLoc(lines),
+        tools: extractTools(source),
+        newTools: [] as string[],
+        coreAddition: meta?.coreAddition ?? "",
+        keyInsight: meta?.keyInsight ?? "",
+        classes: extractClasses(lines),
+        functions: extractFunctions(lines),
+        layer: meta?.layer ?? "tools",
+        source,
+        images: [] as ChapterImage[],
+      };
+    })
+    .filter((version): version is AgentVersion => version !== null);
+
+  return versions;
+}
+
+function buildRootDocs(chapters: ChapterSource[]): DocContent[] {
+  const docs: DocContent[] = [];
+  const locales: Locale[] = ["en", "zh", "ja"];
+
+  for (const chapter of chapters) {
+    for (const locale of locales) {
+      const filename = localeReadmeName(locale);
+      const filePath = path.join(chapter.dirPath, filename);
+      if (!fs.existsSync(filePath)) continue;
+
+      const raw = readText(filePath);
+      const content = rewriteChapterMarkdown(raw, chapter, locale);
+      docs.push({
+        version: chapter.id,
+        locale,
+        title: titleFromMarkdown(content, filename),
+        content,
+      });
+    }
   }
 
-  // 3. Compute diffs between adjacent versions in LEARNING_PATH
+  return docs;
+}
+
+function buildLegacyDocs(): DocContent[] {
+  const docs: DocContent[] = [];
+  if (!fs.existsSync(LEGACY_DOCS_DIR)) return docs;
+
+  const localeDirs: Locale[] = ["en", "zh", "ja"];
+  for (const locale of localeDirs) {
+    const localeDir = path.join(LEGACY_DOCS_DIR, locale);
+    if (!fs.existsSync(localeDir)) continue;
+
+    const docFiles = fs.readdirSync(localeDir).filter((f) => f.endsWith(".md"));
+    for (const filename of docFiles) {
+      const version = extractDocVersion(filename);
+      if (!version) continue;
+
+      const relPath = path.join(locale, filename);
+      const filePath = path.join(LEGACY_DOCS_DIR, relPath);
+      const content = readText(filePath);
+      docs.push({
+        version,
+        locale: detectLocale(relPath),
+        title: titleFromMarkdown(content, filename),
+        content,
+      });
+    }
+  }
+
+  return docs;
+}
+
+function computeNewTools(versions: AgentVersion[]) {
+  for (let i = 0; i < versions.length; i++) {
+    const prev = i > 0 ? new Set(versions[i - 1].tools) : new Set<string>();
+    versions[i].newTools = versions[i].tools.filter((tool) => !prev.has(tool));
+  }
+}
+
+function buildDiffs(versions: AgentVersion[]): VersionDiff[] {
   const diffs: VersionDiff[] = [];
-  const versionMap = new Map(versions.map((v) => [v.id, v]));
+  const versionMap = new Map(versions.map((version) => [version.id, version]));
 
   for (let i = 1; i < LEARNING_PATH.length; i++) {
     const fromId = LEARNING_PATH[i - 1];
     const toId = LEARNING_PATH[i];
     const fromVer = versionMap.get(fromId);
     const toVer = versionMap.get(toId);
-
     if (!fromVer || !toVer) continue;
 
-    const fromClassNames = new Set(fromVer.classes.map((c) => c.name));
-    const fromFuncNames = new Set(fromVer.functions.map((f) => f.name));
+    const fromClassNames = new Set(fromVer.classes.map((cls) => cls.name));
+    const fromFuncNames = new Set(fromVer.functions.map((fn) => fn.name));
     const fromToolNames = new Set(fromVer.tools);
 
     diffs.push({
       from: fromId,
       to: toId,
       newClasses: toVer.classes
-        .map((c) => c.name)
-        .filter((n) => !fromClassNames.has(n)),
+        .map((cls) => cls.name)
+        .filter((name) => !fromClassNames.has(name)),
       newFunctions: toVer.functions
-        .map((f) => f.name)
-        .filter((n) => !fromFuncNames.has(n)),
-      newTools: toVer.tools.filter((t) => !fromToolNames.has(t)),
+        .map((fn) => fn.name)
+        .filter((name) => !fromFuncNames.has(name)),
+      newTools: toVer.tools.filter((tool) => !fromToolNames.has(tool)),
       locDelta: toVer.loc - fromVer.loc,
     });
   }
 
-  // 4. Read doc files from locale subdirectories (en/, zh/, ja/)
-  const docs: DocContent[] = [];
+  return diffs;
+}
 
-  if (fs.existsSync(DOCS_DIR)) {
-    const localeDirs = ["en", "zh", "ja"];
-    let totalDocFiles = 0;
+function sortVersions(versions: AgentVersion[]) {
+  const orderMap = new Map(VERSION_ORDER.map((id, index) => [id, index]));
+  versions.sort(
+    (a, b) => (orderMap.get(a.id as any) ?? 99) - (orderMap.get(b.id as any) ?? 99)
+  );
+}
 
-    for (const locale of localeDirs) {
-      const localeDir = path.join(DOCS_DIR, locale);
-      if (!fs.existsSync(localeDir)) continue;
+function main() {
+  console.log("Extracting course content...");
+  console.log(`  Repo root: ${REPO_ROOT}`);
 
-      const docFiles = fs
-        .readdirSync(localeDir)
-        .filter((f) => f.endsWith(".md"));
+  cleanCourseAssets();
 
-      totalDocFiles += docFiles.length;
+  const rootChapters = listRootChapters();
+  const useRootTrack = rootChapters.length > 0;
 
-      for (const filename of docFiles) {
-        const version = extractDocVersion(filename);
-        if (!version) {
-          console.warn(`  Skipping doc ${locale}/${filename}: could not determine version`);
-          continue;
-        }
+  console.log(
+    useRootTrack
+      ? `  Source: root chapter folders (${rootChapters.length})`
+      : "  Source: legacy agents/docs folders"
+  );
 
-        const filePath = path.join(localeDir, filename);
-        const content = fs.readFileSync(filePath, "utf-8");
+  const versions = useRootTrack
+    ? buildRootVersions(rootChapters)
+    : buildLegacyVersions();
+  const docs = useRootTrack ? buildRootDocs(rootChapters) : buildLegacyDocs();
 
-        const titleMatch = content.match(/^#\s+(.+)$/m);
-        const title = titleMatch ? titleMatch[1] : filename;
+  sortVersions(versions);
+  computeNewTools(versions);
+  const diffs = buildDiffs(versions);
 
-        docs.push({ version, locale: locale as "en" | "zh" | "ja", title, content });
-      }
-    }
-
-    console.log(`  Found ${totalDocFiles} doc files across ${localeDirs.length} locales`);
-  } else {
-    console.warn(`  Docs directory not found: ${DOCS_DIR}`);
-  }
-
-  // 5. Write output
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   const index: VersionIndex = { versions, diffs };
-  const indexPath = path.join(OUT_DIR, "versions.json");
-  fs.writeFileSync(indexPath, JSON.stringify(index, null, 2));
-  console.log(`  Wrote ${indexPath}`);
+  fs.writeFileSync(path.join(OUT_DIR, "versions.json"), JSON.stringify(index, null, 2));
+  fs.writeFileSync(path.join(OUT_DIR, "docs.json"), JSON.stringify(docs, null, 2));
 
-  const docsPath = path.join(OUT_DIR, "docs.json");
-  fs.writeFileSync(docsPath, JSON.stringify(docs, null, 2));
-  console.log(`  Wrote ${docsPath}`);
-
-  // Summary
   console.log("\nExtraction complete:");
   console.log(`  ${versions.length} versions`);
   console.log(`  ${diffs.length} diffs`);
   console.log(`  ${docs.length} docs`);
-  for (const v of versions) {
+  for (const version of versions) {
     console.log(
-      `    ${v.id}: ${v.loc} LOC, ${v.tools.length} tools, ${v.classes.length} classes, ${v.functions.length} functions`
+      `    ${version.id}: ${version.loc} LOC, ${version.tools.length} tools, ${version.classes.length} classes, ${version.functions.length} functions`
     );
   }
 }

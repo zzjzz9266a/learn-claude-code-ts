@@ -1,44 +1,45 @@
 {
   "version": "s11",
-  "title": "Autonomous Agents",
-  "description": "Teammates self-govern with idle cycles and auto-claiming",
+  "title": "Background Tasks",
+  "description": "Long-running work moves to a thread while the agent keeps the main loop responsive.",
   "steps": [
     {
       "type": "user_message",
-      "content": "Implement the full feature backlog",
-      "annotation": "Open-ended task for autonomous team execution"
-    },
-    {
-      "type": "tool_call",
-      "content": "create_tasks([\n  { title: \"User authentication\", status: \"open\" },\n  { title: \"Dashboard UI\", status: \"open\" },\n  { title: \"API rate limiting\", status: \"open\" },\n  { title: \"Integration tests\", status: \"open\" }\n])",
-      "toolName": "task_manager",
-      "annotation": "Tasks created with no owner -- available for auto-claiming"
-    },
-    {
-      "type": "tool_result",
-      "content": "4 tasks created on shared board",
-      "toolName": "task_manager",
-      "annotation": "Unassigned tasks visible to all teammates"
-    },
-    {
-      "type": "system_event",
-      "content": "[frontend-dev] Idle cycle triggered\n  1. Check inbox -> 0 messages\n  2. Poll task board -> found unowned task #2 \"Dashboard UI\"\n  3. Auto-claim task #2\n  4. Status: idle -> working",
-      "annotation": "Idle cycle: check inbox, poll tasks, auto-claim, resume work"
-    },
-    {
-      "type": "system_event",
-      "content": "[backend-dev] Idle cycle triggered\n  1. Check inbox -> 0 messages\n  2. Poll task board -> found unowned task #1 \"User authentication\"\n  3. Auto-claim task #1\n  4. Status: idle -> working",
-      "annotation": "Multiple teammates claim different tasks concurrently"
-    },
-    {
-      "type": "system_event",
-      "content": "[tester] Idle cycle triggered\n  1. Check inbox -> 0 messages\n  2. Poll task board -> task #4 blocked by #1, #2, #3\n  3. No claimable tasks\n  4. Status: idle (will retry in 30s)",
-      "annotation": "Timeout-based polling prevents busy-waiting"
+      "content": "Run a long repository scan and tell me when it finishes.",
+      "annotation": "The user asks for work that may exceed the normal foreground loop."
     },
     {
       "type": "assistant_text",
-      "content": "Team is self-organizing: frontend-dev claimed Dashboard UI, backend-dev claimed User auth. Tester is waiting for dependencies to clear.",
-      "annotation": "Polling + timeout makes teammates autonomous -- no micromanagement needed"
+      "content": "I'll start the scan in the background so we can keep the conversation responsive.",
+      "annotation": "The model chooses the background path instead of blocking on the tool result."
+    },
+    {
+      "type": "tool_call",
+      "toolName": "bash",
+      "content": "rg \"TODO|FIXME\" .",
+      "toolInput": "{\"background\":true}",
+      "annotation": "The tool call is wrapped with a background flag."
+    },
+    {
+      "type": "system_event",
+      "content": "background_tasks[task_42] = Thread(target=run_bash)",
+      "annotation": "The runtime starts a thread and returns immediately."
+    },
+    {
+      "type": "tool_result",
+      "toolName": "bash",
+      "content": "Started background task task_42.",
+      "annotation": "A placeholder result is appended to the main conversation."
+    },
+    {
+      "type": "system_event",
+      "content": "<task_notification id=\"task_42\" status=\"done\">Found 12 matches.</task_notification>",
+      "annotation": "The completed thread injects a notification back into the next loop."
+    },
+    {
+      "type": "assistant_text",
+      "content": "The scan finished with 12 matches. I'll summarize the most important ones now.",
+      "annotation": "The agent consumes the background result as fresh context."
     }
   ]
 }

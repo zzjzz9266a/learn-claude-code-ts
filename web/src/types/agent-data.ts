@@ -1,3 +1,15 @@
+export type AgentLayer =
+  | "tools"
+  | "planning"
+  | "memory"
+  | "concurrency"
+  | "collaboration";
+
+export interface ChapterImage {
+  src: string;
+  alt: string;
+}
+
 export interface AgentVersion {
   id: string;
   filename: string;
@@ -10,8 +22,9 @@ export interface AgentVersion {
   keyInsight: string;
   classes: { name: string; startLine: number; endLine: number }[];
   functions: { name: string; signature: string; startLine: number }[];
-  layer: "tools" | "planning" | "memory" | "concurrency" | "collaboration";
+  layer: AgentLayer;
   source: string;
+  images: ChapterImage[];
 }
 
 export interface VersionDiff {
@@ -25,11 +38,8 @@ export interface VersionDiff {
 
 export interface DocContent {
   version: string;
-  slug?: string;
   locale: "en" | "zh" | "ja";
   title: string;
-  kind?: "chapter" | "bridge";
-  filename?: string;
   content: string; // raw markdown
 }
 

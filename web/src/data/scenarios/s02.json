@@ -1,6 +1,6 @@
 {
   "version": "s02",
-  "title": "Tools",
+  "title": "Tool Use",
   "description": "Agent with read, write, edit, and bash tools",
   "steps": [
     {
@@ -21,13 +21,13 @@
     },
     {
       "type": "tool_result",
-      "content": "print(\"Hello, World!\")",
+      "content": "console.log(\"Hello, World!\");",
       "toolName": "read_file",
       "annotation": "File contents returned to the model"
     },
     {
       "type": "tool_call",
-      "content": "hello.ts\n---\ndef greet(name):\n    print(f\"Hello, {name}!\")\n\ngreet(\"World\")",
+      "content": "hello.ts\n---\nfunction greet(name) {\n    console.log(`Hello, ${name}!`);\n}\n\ngreet(\"World\");",
       "toolName": "write_file",
       "annotation": "write_file replaces the entire file content"
     },

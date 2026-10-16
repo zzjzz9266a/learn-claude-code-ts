@@ -21,6 +21,11 @@ const scenarioModules: Record<string, () => Promise<{ default: Scenario }>> = {
   s10: () => import("@/data/scenarios/s10.json") as Promise<{ default: Scenario }>,
   s11: () => import("@/data/scenarios/s11.json") as Promise<{ default: Scenario }>,
   s12: () => import("@/data/scenarios/s12.json") as Promise<{ default: Scenario }>,
+  s13: () => import("@/data/scenarios/s13.json") as Promise<{ default: Scenario }>,
+  s14: () => import("@/data/scenarios/s14.json") as Promise<{ default: Scenario }>,
+  s15: () => import("@/data/scenarios/s15.json") as Promise<{ default: Scenario }>,
+  s16: () => import("@/data/scenarios/s16.json") as Promise<{ default: Scenario }>,
+  s17: () => import("@/data/scenarios/s17.json") as Promise<{ default: Scenario }>,
 };
 
 interface AgentLoopSimulatorProps {
@@ -33,10 +38,27 @@ export function AgentLoopSimulator({ version }: AgentLoopSimulatorProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const loader = scenarioModules[version];
-    if (loader) {
-      loader().then((mod) => setScenario(mod.default));
+    setScenario(null);
+
+    if (!loader) {
+      return () => {
+        cancelled = true;
+      };
     }
+
+    loader()
+      .then((mod) => {
+        if (!cancelled) setScenario(mod.default);
+      })
+      .catch(() => {
+        if (!cancelled) setScenario(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [version]);
 
   const sim = useSimulator(scenario?.steps ?? []);
@@ -50,7 +72,16 @@ export function AgentLoopSimulator({ version }: AgentLoopSimulatorProps) {
     }
   }, [sim.visibleSteps.length]);
 
-  if (!scenario) return null;
+  if (!scenario) {
+    return (
+      <section>
+        <h2 className="mb-2 text-xl font-semibold">{t("simulator")}</h2>
+        <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg)] p-6 text-sm text-[var(--color-text-secondary)]">
+          Simulator scenario is not available for this lesson yet.
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section>
