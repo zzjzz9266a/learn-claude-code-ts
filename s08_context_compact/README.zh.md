@@ -116,6 +116,8 @@ messages = [...messages.slice(0, head_end), marker, ...messages.slice(tail_start
 
 切点需要保护 `assistant(tool_use)` 和 `user(tool_result)` 的配对关系。孤立的工具结果缺少对应调用，下一次 API 请求会被判定为无效。
 
+重复的工具调用可能让当前请求进入被归档的中间区域。真正发生裁剪后，`prepare` 会检查原始用户消息或已有的 `Current user request` 标记是否仍然可见；如果两者都不存在，就在继续处理前补回一次 `active_request`。
+
 这一步控制消息数量，但保留下来的旧消息仍可能包含很长的工具结果。
 
 
@@ -192,7 +194,20 @@ async function compact_history(messages, active_request) {
 
 ```typescript
 messages = this.tool_result_budget(messages);
+const before_snip = messages;
 messages = this.snip_compact(messages);
+const active_request_marker = (
+    `Current user request:\n${active_request}\n\n` +
+    "Conversation summary (reference only):"
+);
+if (messages !== before_snip
+        && !messages.some((message) =>
+            message.role === "user"
+            && typeof message.content === "string"
+            && (message.content === active_request
+                || message.content.includes(active_request_marker)))) {
+    messages.push({ role: "user", content: active_request });
+}
 if (this.estimate_chars(messages) > this.CONTEXT_CHAR_LIMIT) {
     const target = Math.trunc(this.CONTEXT_CHAR_LIMIT * 0.8);
     messages = this.micro_compact(messages, target);
@@ -265,7 +280,7 @@ async function agent_loop(messages, active_request) {
 }
 ```
 
-每次调用模型前都会经过同一条管线。CLI 在追加 `query` 后调用 `agent_loop(history, query)`，所以压缩多少次都不会丢失本轮请求。只有 `micro_compact` 处理后仍超过阈值，或者 API 明确拒绝上下文时，代码才会请求模型生成摘要。
+每次调用模型前都会经过同一条管线。CLI 在追加 `query` 后调用 `agent_loop(history, query)`；只有真正发生裁剪并移除了所有可见副本时，`prepare` 才会补回 `active_request`。因此压缩多少次都不会丢失本轮请求。只有 `micro_compact` 处理后仍超过阈值，或者 API 明确拒绝上下文时，代码才会请求模型生成摘要。
 
 
 ## compact 工具

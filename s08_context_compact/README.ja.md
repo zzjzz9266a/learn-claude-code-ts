@@ -116,6 +116,8 @@ messages = [...messages.slice(0, head_end), marker, ...messages.slice(tail_start
 
 切断位置では、`assistant(tool_use)` と `user(tool_result)` の組を保護します。対応するツール呼び出しがない孤立した結果を含むと、次の API リクエストは無効になります。
 
+ツール呼び出しが繰り返されると、現在の要求がアーカイブ対象の中間領域へ移ることがあります。実際に切り詰めた後、`prepare` は元のユーザーメッセージまたは既存の `Current user request` マーカーがまだ見えるかを確認します。どちらも残っていなければ、処理を続ける前に `active_request` を一度だけ追加します。
+
 このステップはメッセージ数を抑えます。保持されたメッセージ内のツール結果は、まだ長い可能性があります。
 
 
@@ -192,7 +194,20 @@ async function compact_history(messages, active_request) {
 
 ```typescript
 messages = this.tool_result_budget(messages);
+const before_snip = messages;
 messages = this.snip_compact(messages);
+const active_request_marker = (
+    `Current user request:\n${active_request}\n\n` +
+    "Conversation summary (reference only):"
+);
+if (messages !== before_snip
+        && !messages.some((message) =>
+            message.role === "user"
+            && typeof message.content === "string"
+            && (message.content === active_request
+                || message.content.includes(active_request_marker)))) {
+    messages.push({ role: "user", content: active_request });
+}
 if (this.estimate_chars(messages) > this.CONTEXT_CHAR_LIMIT) {
     const target = Math.trunc(this.CONTEXT_CHAR_LIMIT * 0.8);
     messages = this.micro_compact(messages, target);
@@ -265,7 +280,7 @@ async function agent_loop(messages, active_request) {
 }
 ```
 
-すべてのモデル呼び出しが同じパイプラインを通ります。CLI は `query` を追加した後に `agent_loop(history, query)` を呼ぶため、圧縮を繰り返しても現在の要求は失われません。`micro_compact` の後も上限を超える場合、または API が拒否した場合にだけ、コードはモデルへ要約を依頼します。
+すべてのモデル呼び出しが同じパイプラインを通ります。CLI は `query` を追加した後に `agent_loop(history, query)` を呼びます。実際に切り詰められ、見えるコピーがすべて削除された場合にだけ、`prepare` は `active_request` を追加し直します。そのため、圧縮を繰り返しても現在の要求は失われません。`micro_compact` の後も上限を超える場合、または API が拒否した場合にだけ、コードはモデルへ要約を依頼します。
 
 
 ## compact ツール

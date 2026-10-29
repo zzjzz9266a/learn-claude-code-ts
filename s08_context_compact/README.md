@@ -116,6 +116,8 @@ messages = [...messages.slice(0, head_end), marker, ...messages.slice(tail_start
 
 The cut points protect every `assistant(tool_use)` and `user(tool_result)` pair. An orphaned result has no matching tool call, so the next API request would be invalid.
 
+Repeated tool calls can move the active request into the archived middle. After a real snip, `prepare` checks whether the original user message or an existing `Current user request` marker is still visible. If neither remains, it appends `active_request` once before continuing.
+
 This step controls the number of messages. Tool results inside the retained messages may still be long.
 
 
@@ -192,7 +194,20 @@ The pipeline uses this order and only enters the lossy summary step when necessa
 
 ```typescript
 messages = this.tool_result_budget(messages);
+const before_snip = messages;
 messages = this.snip_compact(messages);
+const active_request_marker = (
+    `Current user request:\n${active_request}\n\n` +
+    "Conversation summary (reference only):"
+);
+if (messages !== before_snip
+        && !messages.some((message) =>
+            message.role === "user"
+            && typeof message.content === "string"
+            && (message.content === active_request
+                || message.content.includes(active_request_marker)))) {
+    messages.push({ role: "user", content: active_request });
+}
 if (this.estimate_chars(messages) > this.CONTEXT_CHAR_LIMIT) {
     const target = Math.trunc(this.CONTEXT_CHAR_LIMIT * 0.8);
     messages = this.micro_compact(messages, target);
@@ -265,7 +280,7 @@ async function agent_loop(messages, active_request) {
 }
 ```
 
-Every model call enters through the same pipeline. After appending `query`, the CLI calls `agent_loop(history, query)`, so repeated compaction cannot lose the current request. The code asks for a summary only when `micro_compact` still leaves the context above the limit or when the API rejects it.
+Every model call enters through the same pipeline. After appending `query`, the CLI calls `agent_loop(history, query)`, and `prepare` restores `active_request` only if a real snip removed every visible copy. Repeated compaction therefore cannot lose the current request. The code asks for a summary only when `micro_compact` still leaves the context above the limit or when the API rejects it.
 
 
 ## The compact Tool
