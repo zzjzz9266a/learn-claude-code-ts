@@ -725,7 +725,20 @@ export class ContextCompactor {
 
   async prepare(messages: any[], active_request: string): Promise<any[]> {
     messages = this.tool_result_budget(messages);
+    const before_snip = messages;
     messages = this.snip_compact(messages);
+    const active_request_marker = (
+      `Current user request:\n${active_request}\n\n` +
+      "Conversation summary (reference only):"
+    );
+    if (messages !== before_snip && !messages.some((message) => (
+      message?.role === "user"
+      && typeof message?.content === "string"
+      && (message.content === active_request
+          || message.content.includes(active_request_marker))
+    ))) {
+      messages.push({"role": "user", "content": active_request});
+    }
     if (this.estimate_chars(messages) > this.CONTEXT_CHAR_LIMIT) {
       const target = Math.trunc(this.CONTEXT_CHAR_LIMIT * 0.8);
       messages = this.micro_compact(messages, target);
