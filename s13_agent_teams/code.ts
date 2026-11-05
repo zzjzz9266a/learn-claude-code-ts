@@ -2680,7 +2680,9 @@ async function main(): Promise<void> {
     const [kind, payload] = await wait_for_cli_event();
     if (kind === "quit") break;
     if (kind === "user") {
-      if (payload === null || ["q", "exit", ""].includes(payload.trim().toLowerCase())) break;
+      if (payload === null) break;
+      if (!payload.trim()) continue;
+      if (["q", "exit"].includes(payload.trim().toLowerCase())) break;
       await trigger_hooks("UserPromptSubmit", payload);
       history.push({ role: "user", content: payload });
     } else {

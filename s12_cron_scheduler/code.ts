@@ -1063,7 +1063,8 @@ async function main(): Promise<void> {
       } catch {
         break;
       }
-      if (["q", "exit", ""].includes(query.trim().toLowerCase())) break;
+      if (!query.trim()) continue;
+      if (["q", "exit"].includes(query.trim().toLowerCase())) break;
       await agent_lock.acquire();
       try {
         await run_agent_turn_locked(query);

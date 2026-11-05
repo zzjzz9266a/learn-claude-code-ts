@@ -652,7 +652,8 @@ async function main(): Promise<void> {
       } catch {
         break;
       }
-      if (["q", "exit", ""].includes(query.trim().toLowerCase())) break;
+      if (!query.trim()) continue;
+      if (["q", "exit"].includes(query.trim().toLowerCase())) break;
       await trigger_hooks("UserPromptSubmit", query);
       history.push({ role: "user", content: query });
       await agent_loop(history);

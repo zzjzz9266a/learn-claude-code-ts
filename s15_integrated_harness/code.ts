@@ -2953,10 +2953,13 @@ export function is_archive_marker(message: any): boolean {
   return isRelativeTo(archived, TRANSCRIPT_DIR) && fs.existsSync(archived) && fs.statSync(archived).isFile();
 }
 
-export function snip_compact(messages: any[], max_messages = 50): any[] {
-  if (messages.length <= max_messages) return messages;
+export function snip_compact(messages: any[], trigger_messages = 50, target_messages = 30): any[] {
+  if (!(5 <= target_messages && target_messages < trigger_messages)) {
+    throw new ValueError("Require 5 <= target_messages < trigger_messages");
+  }
+  if (messages.length < trigger_messages) return messages;
   let head_end = 3;
-  let tail_start = messages.length - (max_messages - head_end - 1);
+  let tail_start = messages.length - (target_messages - head_end - 1);
   if (head_end > 0 && message_has_tool_use(messages[head_end - 1])) {
     while (head_end < messages.length && is_tool_result_message(messages[head_end])) head_end += 1;
   }
@@ -4124,7 +4127,8 @@ async function main(): Promise<void> {
       if (exc?.name === "EOFError" || exc?.name === "KeyboardInterrupt") break;
       throw exc;
     }
-    if (["q", "exit", ""].includes(query.trim().toLowerCase())) break;
+    if (!query.trim()) continue;
+    if (["q", "exit"].includes(query.trim().toLowerCase())) break;
     await agent_lock.acquire();
     try {
       await trigger_hooks("UserPromptSubmit", query);
