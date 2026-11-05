@@ -1251,7 +1251,8 @@ export async function run_cli(): Promise<void> {
     } catch {
       break;
     }
-    if (["q", "exit", ""].includes(query.trim().toLowerCase())) break;
+    if (!query.trim()) continue;
+    if (["q", "exit"].includes(query.trim().toLowerCase())) break;
     await with_agent_lock(host, async () => {
       await host.trigger_hooks("UserPromptSubmit", query);
       const turn_start = history.length;

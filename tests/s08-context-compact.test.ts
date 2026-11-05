@@ -1,11 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 process.env.MODEL_ID ??= "test-model";
 
-const { ContextCompactor } = await import("../s08_context_compact/code.ts");
+const { ContextCompactor, COMPACTOR, agent_loop, client } = await import("../s08_context_compact/code.ts");
 
 const tempDirs: string[] = [];
 
@@ -38,6 +38,7 @@ function toolPair(tool_id: string, output: string): any[] {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -132,4 +133,60 @@ describe("s08 prepare restores the active request after snip", () => {
       expect(prepared.some((message) => message.content === request)).toBe(expected_restored);
     },
   );
+});
+
+describe("s08 reactive compact recognizes Anthropic prompt overflow", () => {
+  test.each([
+    "prompt is too long: 210445 tokens > 200000 maximum",
+    "prompt_too_long",
+    "too many tokens",
+  ])("compacts and retries after %j", async (error_message) => {
+    const messages = [{"role": "user", "content": "continue"}];
+    const compacted = [{"role": "user", "content": "compacted history"}];
+    const requests: any[][] = [];
+    const response = {content: [{type: "text", text: "Recovered"}]};
+    vi.spyOn(client.messages, "create").mockImplementation((async (kwargs: any) => {
+      requests.push(kwargs.messages.slice());
+      if (requests.length === 1) throw new Error(error_message);
+      return response;
+    }) as any);
+    const compact = vi.spyOn(COMPACTOR, "reactive_compact").mockResolvedValue(compacted);
+
+    await agent_loop(messages, "continue");
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(compacted);
+    expect(compact).toHaveBeenCalledOnce();
+    expect(compact.mock.calls[0][1]).toBe("continue");
+    expect(messages).toEqual([
+      ...compacted,
+      {"role": "assistant", "content": response.content},
+    ]);
+  });
+
+  test("stops after one reactive retry", async () => {
+    const messages = [{"role": "user", "content": "continue"}];
+    const first_error = new Error("prompt is too long: first request");
+    const retry_error = new Error("prompt is too long: retry");
+    let attempts = 0;
+    const create = vi.spyOn(client.messages, "create").mockImplementation((async () => {
+      attempts += 1;
+      throw attempts === 1 ? first_error : retry_error;
+    }) as any);
+    const compact = vi.spyOn(COMPACTOR, "reactive_compact").mockImplementation(async () => messages.slice());
+
+    await expect(agent_loop(messages, "continue")).rejects.toBe(retry_error);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(compact).toHaveBeenCalledOnce();
+  });
+
+  test("propagates unrelated errors", async () => {
+    const error = new Error("invalid API key");
+    const create = vi.spyOn(client.messages, "create").mockRejectedValue(error);
+    const compact = vi.spyOn(COMPACTOR, "reactive_compact");
+
+    await expect(agent_loop([{"role": "user", "content": "continue"}], "continue")).rejects.toBe(error);
+    expect(create).toHaveBeenCalledOnce();
+    expect(compact).not.toHaveBeenCalled();
+  });
 });

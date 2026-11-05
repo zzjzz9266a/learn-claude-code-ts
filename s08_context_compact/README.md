@@ -20,7 +20,7 @@ This lesson adds a four-step compaction pipeline. It first reduces recoverable t
 
 Think of the context window as the model's current scratchpad. User messages, model responses, `tool_use`, and `tool_result` blocks are written onto it in order. The model reads that material again whenever it continues the task.
 
-The scratchpad has a fixed size. When a request exceeds it, the API rejects the call with `prompt_too_long`. Tool results usually consume most of the space in coding tasks:
+The scratchpad has a fixed size. When a request exceeds it, the API rejects the call with `prompt is too long`. Tool results usually consume most of the space in coding tasks:
 
 - Reading a long file puts its contents into the context.
 - Test and build logs can add tens of kilobytes at once.
@@ -89,11 +89,16 @@ This step examines only the latest batch of tool results. The complete output re
 
 ## Step 2: snip_compact
 
-Once the history exceeds 50 messages, `snip_compact` writes the complete history to `.transcripts/`, then keeps the first 3 and latest 46 messages. The archive marker occupies the remaining slot, records how many messages were removed, and points to the complete transcript.
+Once the history reaches `trigger_messages` (50 by default), `snip_compact` writes the complete history to `.transcripts/`, then trims toward `target_messages` (30 by default): the first 3 messages, an archive marker, and the latest 26 messages. The marker records how many messages were removed and points to the complete transcript. Separate trigger and target counts leave room for new messages, avoiding another archive write on every subsequent model call. The tradeoff is keeping fewer recent messages directly in context; older content remains available in the transcript.
+
+Require `5 <= target_messages < trigger_messages`: the target includes the marker and leaves at least one recent message after the initial three.
 
 ```typescript
+if (messages.length < trigger_messages) {
+    return messages;
+}
 let head_end = 3;
-let tail_start = messages.length - (max_messages - head_end - 1);
+let tail_start = messages.length - (target_messages - head_end - 1);
 
 if (this.has_tool_use(messages[head_end - 1])) {
     while (head_end < tail_start
@@ -114,7 +119,7 @@ const marker = { role: "user", content:
 messages = [...messages.slice(0, head_end), marker, ...messages.slice(tail_start)];
 ```
 
-The cut points protect every `assistant(tool_use)` and `user(tool_result)` pair. An orphaned result has no matching tool call, so the next API request would be invalid.
+The cut points protect every `assistant(tool_use)` and `user(tool_result)` pair, so the retained count may slightly exceed the target. An orphaned result has no matching tool call, so the next API request would be invalid.
 
 Repeated tool calls can move the active request into the archived middle. After a real snip, `prepare` checks whether the original user message or an existing `Current user request` marker is still visible. If neither remains, it appends `active_request` once before continuing.
 
@@ -230,7 +235,7 @@ Each round therefore starts with the lowest-cost operation whose information is 
 
 ## Recovering From an API Rejection
 
-A character count can only estimate the tokens used by a model. The API may still return `prompt_too_long`. `reactive_compact` saves a transcript, summarizes older history, and retains the latest 5 messages:
+A character count can only estimate the tokens used by a model. The API may still return `prompt is too long`. `reactive_compact` saves a transcript, summarizes older history, and retains the latest 5 messages:
 
 ```typescript
 let tail_start = Math.max(0, messages.length - this.KEEP_RECENT_MESSAGES);
@@ -266,6 +271,7 @@ async function agent_loop(messages, active_request) {
         } catch (error) {
             const message = String(error).toLowerCase();
             const too_long = message.includes("prompt_too_long")
+                        || message.includes("prompt is too long")
                         || message.includes("too many tokens");
             if (too_long && reactive_retries < MAX_REACTIVE_RETRIES) {
                 const compacted = await COMPACTOR.reactive_compact(
@@ -377,4 +383,4 @@ Context compaction lets an Agent continue a long task within a limited window. I
 
 s09 Memory adds memory writing, retrieval, and consolidation.
 
-<!-- translation-sync: zh@v8, en@v8, ja@v8 -->
+<!-- translation-sync: zh@v9, en@v9, ja@v9 -->
