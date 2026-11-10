@@ -586,12 +586,15 @@ export class ContextCompactor {
     return is_relative_to(resolve(this.transcript_dir), path) && is_file(path);
   }
 
-  snip_compact(messages: any[], max_messages = 50): any[] {
-    if (messages.length <= max_messages) {
+  snip_compact(messages: any[], trigger_messages = 50, target_messages = 30): any[] {
+    if (!(5 <= target_messages && target_messages < trigger_messages)) {
+      throw new Error("Require 5 <= target_messages < trigger_messages");
+    }
+    if (messages.length < trigger_messages) {
       return messages;
     }
     let head_end = 3;
-    let tail_start = messages.length - (max_messages - head_end - 1);
+    let tail_start = messages.length - (target_messages - head_end - 1);
     if (this.has_tool_use(messages[head_end - 1])) {
       while (head_end < tail_start && this.is_tool_result(messages[head_end])) {
         head_end += 1;
@@ -771,7 +774,7 @@ export async function agent_loop(messages: any[], active_request: string): Promi
       reactive_retries = 0;
     } catch (error) {
       const message = String(error).toLowerCase();
-      const too_long = ["prompt_too_long", "too many tokens"].some((text) => message.includes(text));
+      const too_long = ["prompt_too_long", "prompt is too long", "too many tokens"].some((text) => message.includes(text));
       if (too_long && reactive_retries < MAX_REACTIVE_RETRIES) {
         console.log("[reactive compact]");
         assign_list(messages, await COMPACTOR.reactive_compact(messages, active_request));
@@ -827,7 +830,10 @@ export async function main(): Promise<void> {
     } catch {
       break;
     }
-    if (["q", "exit", ""].includes(query.trim().toLowerCase())) {
+    if (!query.trim()) {
+      continue;
+    }
+    if (["q", "exit"].includes(query.trim().toLowerCase())) {
       break;
     }
     await trigger_hooks("UserPromptSubmit", query);

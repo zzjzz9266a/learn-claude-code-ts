@@ -20,7 +20,7 @@ Agent 持续工作时，读过的文件、执行过的命令和模型回复都�
 
 可以把上下文窗口看作模型当前使用的一张草稿纸。用户消息、模型回复、`tool_use` 和 `tool_result` 都会按顺序写在这张纸上。模型每次继续工作时，都要重新读取这些内容。
 
-草稿纸的大小固定。内容超过上限后，API 会拒绝请求并返回 `prompt_too_long`。在代码任务里，工具结果通常占据最多空间：
+草稿纸的大小固定。内容超过上限后，API 会拒绝请求并返回 `prompt is too long`。在代码任务里，工具结果通常占据最多空间：
 
 - 读取一个长文件会把文件内容放进上下文；
 - 测试和构建日志可能一次产生几十 KB 文本；
@@ -89,11 +89,16 @@ for (const block of ranked) {
 
 ## 第二步：snip_compact
 
-消息数量超过 50 条后，`snip_compact` 先把完整历史写入 `.transcripts/`，再保留最初 3 条和最近 46 条。剩余一个位置用于归档标记，其中写明删去了多少条消息，以及完整记录保存在哪里。
+消息数量达到 `trigger_messages`（默认 50 条）后，`snip_compact` 先把完整历史写入 `.transcripts/`，再向 `target_messages`（默认 30 条）裁剪：保留最初 3 条、1 条归档标记和最近 26 条。标记写明删去了多少条消息，以及完整记录保存在哪里。触发阈值与目标数量分离，为新增消息留出空间，避免后续每次模型调用都再次写入归档。代价是直接保留在上下文中的近期消息更少；较早的内容仍可从归档中取回。
+
+参数需满足 `5 <= target_messages < trigger_messages`：目标数量包含归档标记，并在最初 3 条之外至少保留 1 条最近消息。
 
 ```typescript
+if (messages.length < trigger_messages) {
+    return messages;
+}
 let head_end = 3;
-let tail_start = messages.length - (max_messages - head_end - 1);
+let tail_start = messages.length - (target_messages - head_end - 1);
 
 if (this.has_tool_use(messages[head_end - 1])) {
     while (head_end < tail_start
@@ -114,7 +119,7 @@ const marker = { role: "user", content:
 messages = [...messages.slice(0, head_end), marker, ...messages.slice(tail_start)];
 ```
 
-切点需要保护 `assistant(tool_use)` 和 `user(tool_result)` 的配对关系。孤立的工具结果缺少对应调用，下一次 API 请求会被判定为无效。
+切点需要保护 `assistant(tool_use)` 和 `user(tool_result)` 的配对关系，因此保留的消息数可能略高于目标数量。孤立的工具结果缺少对应调用，下一次 API 请求会被判定为无效。
 
 重复的工具调用可能让当前请求进入被归档的中间区域。真正发生裁剪后，`prepare` 会检查原始用户消息或已有的 `Current user request` 标记是否仍然可见；如果两者都不存在，就在继续处理前补回一次 `active_request`。
 
@@ -230,7 +235,7 @@ if (this.estimate_chars(messages) > this.CONTEXT_CHAR_LIMIT) {
 
 ## API 拒绝后的补救
 
-字符数只能估算模型实际使用的 token。API 仍可能返回 `prompt_too_long`。`reactive_compact` 会保存 transcript，总结较早历史，并保留最近 5 条消息：
+字符数只能估算模型实际使用的 token。API 仍可能返回 `prompt is too long`。`reactive_compact` 会保存 transcript，总结较早历史，并保留最近 5 条消息：
 
 ```typescript
 let tail_start = Math.max(0, messages.length - this.KEEP_RECENT_MESSAGES);
@@ -266,6 +271,7 @@ async function agent_loop(messages, active_request) {
         } catch (error) {
             const message = String(error).toLowerCase();
             const too_long = message.includes("prompt_too_long")
+                        || message.includes("prompt is too long")
                         || message.includes("too many tokens");
             if (too_long && reactive_retries < MAX_REACTIVE_RETRIES) {
                 const compacted = await COMPACTOR.reactive_compact(
@@ -377,4 +383,4 @@ npx tsx s08_context_compact/code.ts
 
 s09 Memory 将实现记忆写入、检索与整理。
 
-<!-- translation-sync: zh@v8, en@v8, ja@v8 -->
+<!-- translation-sync: zh@v9, en@v9, ja@v9 -->

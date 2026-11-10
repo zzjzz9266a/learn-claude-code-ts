@@ -20,7 +20,7 @@ Agent が作業を続けると、読み込んだファイル、コマンド結�
 
 コンテキストウィンドウは、モデルが現在使っている下書き用紙と考えられます。ユーザーメッセージ、モデルの応答、`tool_use`、`tool_result` が順番に書き込まれます。モデルはタスクを続けるたびに、その内容を読み直します。
 
-下書き用紙の大きさは固定です。上限を超えると API はリクエストを拒否し、`prompt_too_long` を返します。コーディングタスクでは、ツール結果が多くの領域を占めます。
+下書き用紙の大きさは固定です。上限を超えると API はリクエストを拒否し、`prompt is too long` を返します。コーディングタスクでは、ツール結果が多くの領域を占めます。
 
 - 長いファイルを読むと、その内容がコンテキストに入ります。
 - テストやビルドのログは、一度に数十 KB 追加されることがあります。
@@ -89,11 +89,16 @@ for (const block of ranked) {
 
 ## ステップ 2：snip_compact
 
-履歴が 50 メッセージを超えると、`snip_compact` は完全な履歴を `.transcripts/` に保存してから、先頭 3 件と最新 46 件を保持します。残り 1 件は archive marker に使い、削除した件数と完全な transcript の保存先を記録します。
+履歴が `trigger_messages`（デフォルト 50 件）に達すると、`snip_compact` は完全な履歴を `.transcripts/` に保存してから、`target_messages`（デフォルト 30 件）を目標に切り詰めます。先頭 3 件、archive marker 1 件、最新 26 件を保持します。marker は削除した件数と完全な transcript の保存先を記録します。発動閾値と目標件数を分けることで、新しいメッセージを追加する余裕が生まれ、その後の model call ごとに再び履歴を書き出すことを避けます。その代わり、context に直接残る最近のメッセージは少なくなります。古い内容は transcript から取得できます。
+
+パラメータは `5 <= target_messages < trigger_messages` を満たす必要があります。目標件数には marker を含め、先頭 3 件に加えて最新のメッセージを少なくとも 1 件保持します。
 
 ```typescript
+if (messages.length < trigger_messages) {
+    return messages;
+}
 let head_end = 3;
-let tail_start = messages.length - (max_messages - head_end - 1);
+let tail_start = messages.length - (target_messages - head_end - 1);
 
 if (this.has_tool_use(messages[head_end - 1])) {
     while (head_end < tail_start
@@ -114,7 +119,7 @@ const marker = { role: "user", content:
 messages = [...messages.slice(0, head_end), marker, ...messages.slice(tail_start)];
 ```
 
-切断位置では、`assistant(tool_use)` と `user(tool_result)` の組を保護します。対応するツール呼び出しがない孤立した結果を含むと、次の API リクエストは無効になります。
+切断位置では、`assistant(tool_use)` と `user(tool_result)` の組を保護するため、保持件数が目標を少し上回る場合があります。対応するツール呼び出しがない孤立した結果を含むと、次の API リクエストは無効になります。
 
 ツール呼び出しが繰り返されると、現在の要求がアーカイブ対象の中間領域へ移ることがあります。実際に切り詰めた後、`prepare` は元のユーザーメッセージまたは既存の `Current user request` マーカーがまだ見えるかを確認します。どちらも残っていなければ、処理を続ける前に `active_request` を一度だけ追加します。
 
@@ -230,7 +235,7 @@ if (this.estimate_chars(messages) > this.CONTEXT_CHAR_LIMIT) {
 
 ## API に拒否された後の回復
 
-文字数はモデルが使う token 数の推定値です。そのため API が `prompt_too_long` を返す可能性は残ります。`reactive_compact` は transcript を保存し、古い履歴を要約して、最新 5 メッセージを保持します。
+文字数はモデルが使う token 数の推定値です。そのため API が `prompt is too long` を返す可能性は残ります。`reactive_compact` は transcript を保存し、古い履歴を要約して、最新 5 メッセージを保持します。
 
 ```typescript
 let tail_start = Math.max(0, messages.length - this.KEEP_RECENT_MESSAGES);
@@ -266,6 +271,7 @@ async function agent_loop(messages, active_request) {
         } catch (error) {
             const message = String(error).toLowerCase();
             const too_long = message.includes("prompt_too_long")
+                        || message.includes("prompt is too long")
                         || message.includes("too many tokens");
             if (too_long && reactive_retries < MAX_REACTIVE_RETRIES) {
                 const compacted = await COMPACTOR.reactive_compact(
@@ -377,4 +383,4 @@ s08_context_compact/code.ts と s09_memory/code.ts を比較し、
 
 s09 Memory では、メモリの書き込み、検索、整理を実装します。
 
-<!-- translation-sync: zh@v8, en@v8, ja@v8 -->
+<!-- translation-sync: zh@v9, en@v9, ja@v9 -->
