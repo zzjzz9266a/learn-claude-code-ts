@@ -202,6 +202,44 @@ export const BASE_HANDLERS: Record<string, (input: any) => string> = {
 
 // -- New in s14: MCP discovery and dispatch --
 
+function parameterNames(fn: Function): string[] {
+  const src = Function.prototype.toString.call(fn);
+  const open = src.indexOf("(");
+  if (open < 0) return [];
+  let depth = 0;
+  let end = -1;
+  for (let i = open; i < src.length; i += 1) {
+    if (src[i] === "(") depth += 1;
+    else if (src[i] === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  if (end < 0) return [];
+  const raw = src.slice(open + 1, end).trim();
+  if (!raw) return [];
+  return raw.split(",").map((part) => {
+    const nameMatch = part.trim().match(/^(?:\.\.\.)?([A-Za-z_$][\w$]*)/);
+    return nameMatch ? nameMatch[1] : "";
+  }).filter(Boolean);
+}
+
+/** Invoke a server tool the way Python calls handler(**args). */
+function callWithKeywords(handler: Function, args: Record<string, any> | null | undefined): any {
+  const values = args ?? {};
+  const names = parameterNames(handler);
+  const label = handler.name || "<lambda>";
+  for (const key of Object.keys(values)) {
+    if (!names.includes(key)) {
+      throw new TypeError(`${label}() got an unexpected keyword argument '${key}'`);
+    }
+  }
+  return handler(...names.map((name) => values[name]));
+}
+
 export class MCPClient {
   /** Small in-process stand-in for MCP tools/list and tools/call. */
   name: string;
@@ -234,7 +272,7 @@ export class MCPClient {
       return `MCP error: unknown tool '${tool_name}'`;
     }
     try {
-      return String(handler(args));
+      return String(callWithKeywords(handler, args));
     } catch (exc) {
       const error = exc as Error;
       return `MCP error: ${error.name}: ${error.message}`;
@@ -288,7 +326,7 @@ export function _mock_server_docs(): MCPClient {
       },
     ],
     {
-      "search": (args: any) => `[docs] Found 3 results for '${args["query"]}'`,
+      "search": (query: string) => `[docs] Found 3 results for '${query}'`,
       "get_version": () => "[docs] API v2.1.0",
     },
   );
@@ -321,8 +359,8 @@ export function _mock_server_deploy(): MCPClient {
       },
     ],
     {
-      "trigger": (args: any) => `[deploy] Triggered: ${args["service"]}`,
-      "status": (args: any) => `[deploy] ${args["service"]}: running (v1.4.2)`,
+      "trigger": (service: string) => `[deploy] Triggered: ${service}`,
+      "status": (service: string) => `[deploy] ${service}: running (v1.4.2)`,
     },
   );
   return server;
@@ -370,6 +408,14 @@ export const BUILTIN_HANDLERS: Record<string, (input: any) => string> = {
   "connect_mcp": (input: any) => run_connect_mcp(input["name"]),
 };
 
+/** Bind client and tool in a closure so tool input cannot replace them. */
+export function make_mcp_handler(
+  client: MCPClient,
+  tool: string,
+): (kwargs?: Record<string, any>) => string {
+  return (kwargs: Record<string, any> = {}) => client.call_tool(tool, kwargs ?? {});
+}
+
 export function assemble_tool_pool(): [any[], Record<string, (input: any) => string>] {
   /** Combine built-in tools with every connected server tool. */
   const tools = [...BUILTIN_TOOLS];
@@ -411,9 +457,7 @@ export function assemble_tool_pool(): [any[], Record<string, (input: any) => str
         "description": tool_def["description"] ?? "",
         "input_schema": schema,
       });
-      const client = server;
-      const tool = raw_name;
-      handlers[prefixed] = (kwargs: any = {}) => client.call_tool(tool, kwargs);
+      handlers[prefixed] = make_mcp_handler(server, raw_name);
       policies[prefixed] = MCP_HOST_POLICY[server_name]?.[raw_name] ?? "confirm";
     }
   }
