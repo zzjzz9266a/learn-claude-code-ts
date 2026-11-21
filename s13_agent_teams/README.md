@@ -184,9 +184,9 @@ idle_notification: "Waiting for more work."
 
 An idle teammate does not exit. A direct message or a ready task returns it to WORK; a `shutdown_request` starts a graceful shutdown handshake.
 
-### 6. IDLE checks the mailbox before looking for ready tasks
+### 6. IDLE checks the mailbox, resumes owned work, then looks for ready tasks
 
-IDLE gives messages priority, then checks the shared task board:
+IDLE gives messages priority. If no message arrives, it resumes the teammate's unfinished assignment before checking the shared task board for new work:
 
 ```typescript
 while (true) {
@@ -199,18 +199,27 @@ while (true) {
     continue;
   }
 
-  const task = claim_next_task(name);
+  if (plan_gates[name] === "pending") {
+    continue;
+  }
+
+  let task = resumable_task(name);
+  const resuming = task !== null;
+  if (!task) {
+    task = claim_next_task(name);
+  }
   if (task) {
+    const label = resuming ? "Resume" : "Auto-claimed";
     messages.push({
       role: "user",
-      content: `[Auto-claimed task ${task.id}] ${task.subject}`,
+      content: `[${label} task ${task.id}] ${task.subject}`,
     });
     break;
   }
 }
 ```
 
-Shutdown, plan approval, and direct instructions from Lead should arrive before opportunistic work. If there is no message and no ready task, the teammate remains IDLE. A blocked task may become ready after another teammate completes its prerequisite.
+Shutdown, plan approval, and direct instructions from Lead should arrive before task work. An unfinished assignment stays ahead of opportunistic work so an IDLE teammate cannot strand its own in-progress task. If there is no message, unfinished assignment, or ready task, the teammate remains IDLE. A blocked task may become ready after another teammate completes its prerequisite.
 
 ### 7. Discovery and claim are separate, and claim is atomic
 

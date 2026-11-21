@@ -1820,6 +1820,11 @@ export function scan_unclaimed_tasks(): Task[] {
   });
 }
 
+/** Return the owner's unfinished Task before looking for new work. */
+export function resumable_task(owner: string): Task | null {
+  return withLock(task_lock, () => _owner_in_progress(owner));
+}
+
 /** Claim the first still-available task, never a second assignment. */
 export function claim_next_task(name: string): Task | null {
   const busy = withLock(task_lock, () => Boolean(teammate_assignments[name] || _owner_in_progress(name)));
@@ -2016,7 +2021,7 @@ export class TeammateRuntime {
     return "idle";
   }
 
-  /** Wait for a message or atomically claim the next ready Task. */
+  /** Wait for a message, resume owned work, or claim a ready Task. */
   async wait_for_work(): Promise<boolean> {
     while (true) {
       const inbox = await BUS.wait_for_messages(this.name, IDLE_SCAN_INTERVAL);
@@ -2026,14 +2031,22 @@ export class TeammateRuntime {
         if (this.messages.length > before) return true;
         continue;
       }
-      const task = claim_next_task(this.name);
+      if (plan_gates[this.name] === "pending") {
+        continue;
+      }
+      let task = resumable_task(this.name);
+      const resuming = task !== null;
+      if (!task) {
+        task = claim_next_task(this.name);
+      }
       if (!task) continue;
       const cwd = assignment_cwd(this.name);
       this.messages.push({
         role: "user",
-        content: `[Auto-claimed task ${task.id}] ${task.subject}\n${task.description}\nWork directory: ${cwd}`,
+        content: `[${resuming ? "Resume" : "Auto-claimed"} task ${task.id}] ${task.subject}\n${task.description}\nWork directory: ${cwd}`,
       });
-      console.log(`  [idle] ${this.name} claimed ${task.id}: ${task.subject}`);
+      const action = resuming ? "resuming" : "claimed";
+      console.log(`  [idle] ${this.name} ${action} ${task.id}: ${task.subject}`);
       return true;
     }
   }

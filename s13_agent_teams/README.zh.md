@@ -183,9 +183,9 @@ idle_notification: "Waiting for more work."
 
 空闲队友不会退出。直接消息或 ready task 会让它回到 WORK，`shutdown_request` 则会启动平滑关机握手。
 
-### 6. IDLE 先看收件箱，再找 ready task
+### 6. IDLE 先看收件箱，再恢复自己的任务，最后找 ready task
 
-队友进入 IDLE 后优先处理消息，然后检查共享任务板：
+队友进入 IDLE 后优先处理消息。没有消息时，先恢复自己尚未完成的 assignment，再到共享任务板寻找新工作：
 
 ```typescript
 while (true) {
@@ -198,18 +198,27 @@ while (true) {
     continue;
   }
 
-  const task = claim_next_task(name);
+  if (plan_gates[name] === "pending") {
+    continue;
+  }
+
+  let task = resumable_task(name);
+  const resuming = task !== null;
+  if (!task) {
+    task = claim_next_task(name);
+  }
   if (task) {
+    const label = resuming ? "Resume" : "Auto-claimed";
     messages.push({
       role: "user",
-      content: `[Auto-claimed task ${task.id}] ${task.subject}`,
+      content: `[${label} task ${task.id}] ${task.subject}`,
     });
     break;
   }
 }
 ```
 
-关机、计划审批和 Lead 的直接指令应该先于临时发现的工作。如果没有消息，也没有 ready task，队友会保持 IDLE。前置任务完成后，当前受阻的任务可能变为 ready。
+关机、计划审批和 Lead 的直接指令应该先于任务工作。尚未完成的 assignment 又优先于临时发现的工作，避免 IDLE 队友遗留自己进行中的任务。如果没有消息、未完成的 assignment 或 ready task，队友会保持 IDLE。前置任务完成后，当前受阻的任务可能变为 ready。
 
 ### 7. 发现和认领分成两步，认领必须原子执行
 

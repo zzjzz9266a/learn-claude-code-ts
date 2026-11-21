@@ -1069,11 +1069,16 @@ export const WORKFLOWS: Record<string, [any, (ctx: ExecutionState, args: any) =>
 
 export const WORKFLOW_TOOL = {
   "name": "Workflow",
-  "description": "Run a saved workflow by name. Pass input in args.",
+  "description": (
+    "Run a saved workflow by name. Pass input in args. Available workflows:\n"
+    + Object.entries(WORKFLOWS)
+      .map(([name, [meta]]) => `${name}: ${meta["description"]}`)
+      .join("\n")
+  ),
   "input_schema": {
     "type": "object",
     "properties": {
-      "name": {"type": "string"},
+      "name": {"type": "string", "enum": Object.keys(WORKFLOWS)},
       "args": {"type": "object"},
       "resume_from_run_id": {"type": "string"},
     },

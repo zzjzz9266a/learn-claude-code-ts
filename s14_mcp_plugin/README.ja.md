@@ -131,12 +131,10 @@ tools.push({
   "description": tool_def["description"] ?? "",
   "input_schema": schema,
 });
-handlers[prefixed] = ((client, tool) => {
-  return (kwargs: Record<string, any>) => client.call_tool(tool, kwargs);
-})(server, raw_name);
+handlers[prefixed] = make_mcp_handler(server, raw_name);
 ```
 
-model は prefix 付きの名前を見る。handler は server の元の tool name で `MCPClient` を呼ぶ。default argument が現在の client と tool を保持するため、loop 内の lambda がすべて最後の tool を参照することはない。
+model は prefix 付きの名前を見る。handler は server の元の tool name で `MCPClient` を呼ぶ。`make_mcp_handler()` が現在の client と tool を closure に保持するため、loop 内の lambda がすべて最後の tool を参照することはない。default argument でも同じことはできるが、それは通常の keyword parameter のままであり、tool input の `tool` key が default を上書きし、許可済みの呼び出しを別の server tool に差し替えてしまう。
 
 ### 6. permission は host が決める
 

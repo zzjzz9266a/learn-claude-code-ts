@@ -2128,6 +2128,11 @@ export function scan_unclaimed_tasks(): Task[] {
   });
 }
 
+/** Return the owner's unfinished Task before looking for new work. */
+export function resumable_task(owner: string): Task | null {
+  return withLock(task_lock, () => _owner_in_progress(owner));
+}
+
 export function claim_next_task(name: string): Task | null {
   // Claim the first still-available task, never a second assignment.
   const busy = withLock(task_lock, () => Boolean(teammate_assignments[name] || _owner_in_progress(name)));
@@ -2485,7 +2490,14 @@ export function spawn_teammate_thread(
           if (should_stop || messages[messages.length - 1].role === "user") break;
           continue;
         }
-        const task = claim_next_task(name);
+        if (plan_gates[name] === "pending") {
+          continue;
+        }
+        let task = resumable_task(name);
+        const resuming = task !== null;
+        if (!task) {
+          task = claim_next_task(name);
+        }
         if (!task) continue;
         let workdir: string;
         try {
@@ -2496,9 +2508,10 @@ export function spawn_teammate_thread(
         }
         messages.push({
           role: "user",
-          content: `[Auto-claimed task ${task.id}] ${task.subject}\n${task.description}\nWork directory: ${workdir}`,
+          content: `[${resuming ? "Resume" : "Auto-claimed"} task ${task.id}] ${task.subject}\n${task.description}\nWork directory: ${workdir}`,
         });
-        console.log(`  \x1b[32m[idle] ${name} claimed ${task.id}: ${task.subject}\x1b[0m`);
+        const action = resuming ? "resuming" : "claimed";
+        console.log(`  \x1b[32m[idle] ${name} ${action} ${task.id}: ${task.subject}\x1b[0m`);
         break;
       }
     }
@@ -3546,7 +3559,15 @@ export class MCPClient {
     const handler = this._handlers[tool_name];
     if (!handler) return `MCP error: unknown tool '${tool_name}'`;
     try {
-      return String(invokeTool(handler, args));
+      const values = args ?? {};
+      const names = new Set(paramNames(handler));
+      const label = handler.name || "<lambda>";
+      for (const key of Object.keys(values)) {
+        if (!names.has(key)) {
+          throw new TypeError(`${label}() got an unexpected keyword argument '${key}'`);
+        }
+      }
+      return String(invokeTool(handler, values));
     } catch (exc: any) {
       return `MCP error: ${typeAndText(exc)}`;
     }
@@ -3632,6 +3653,11 @@ export function connect_mcp(name: string): string {
   return `Connected to MCP server '${name}'. Discovered ${mcp_client.tools.length} tools: ${tool_names.join(", ")}`;
 }
 
+/** Bind client and tool in a closure so tool input cannot replace them. */
+export function make_mcp_handler(client: MCPClient, tool: string) {
+  return kwargsHandler((kwargs) => client.call_tool(tool, kwargs));
+}
+
 export function assemble_tool_pool(): [any[], Record<string, any>] {
   // Merge builtin tools + all MCP tools into one pool.
   const tools = BUILTIN_TOOLS.slice();
@@ -3665,9 +3691,7 @@ export function assemble_tool_pool(): [any[], Record<string, any>] {
         "description": tool_def.description ?? "",
         "input_schema": schema,
       });
-      const capturedClient = mcp_client;
-      const capturedTool = raw_name;
-      handlers[prefixed] = kwargsHandler((kwargs) => capturedClient.call_tool(capturedTool, kwargs));
+      handlers[prefixed] = make_mcp_handler(mcp_client, raw_name);
       policies[prefixed] = MCP_HOST_POLICY[policyKey(server_name, raw_name)] ?? "confirm";
     }
   }
